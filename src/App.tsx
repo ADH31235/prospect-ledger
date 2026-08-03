@@ -7,6 +7,7 @@ import NewsletterAdmin from "./NewsletterAdmin";
 import DealSignals from "./DealSignals";
 import SequencesOverview from "./SequencesOverview";
 import SubscribePage from "./SubscribePage";
+import InquirePage from "./InquirePage";
 import NewsletterActionPage from "./NewsletterActionPage";
 import Login, { useSession } from "./Login";
 import { useLeads } from "./useLeads";
@@ -106,6 +107,7 @@ export default function App() {
     <Routes>
       {/* Public routes — no auth required */}
       <Route path="/subscribe" element={<SubscribePage />} />
+      <Route path="/inquire" element={<InquirePage />} />
       <Route path="/newsletter-action" element={<NewsletterActionPage />} />
       {/* Everything else requires login */}
       <Route path="*" element={<ProtectedApp />} />
