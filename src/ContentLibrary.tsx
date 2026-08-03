@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Plus, Copy, ExternalLink, Users } from "lucide-react";
+import { Plus, Copy, ExternalLink, Users, Pencil } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
 const TOKENS = {
@@ -34,6 +34,7 @@ export default function ContentLibrary() {
   const [webinars, setWebinars] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ title: "", content_type: "linkedin_post", body_preview: "", published_at: "" });
   const [linkBuilderFor, setLinkBuilderFor] = useState(null);
   const [destination, setDestination] = useState("inquire");
@@ -71,17 +72,47 @@ export default function ContentLibrary() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleCreate(e) {
+  function startEdit(piece) {
+    setForm({
+      title: piece.title,
+      content_type: piece.content_type,
+      body_preview: piece.body_preview || "",
+      published_at: piece.published_at || "",
+    });
+    setEditingId(piece.id);
+    setShowCreate(true);
+  }
+
+  function startCreate() {
+    setForm({ title: "", content_type: "linkedin_post", body_preview: "", published_at: "" });
+    setEditingId(null);
+    setShowCreate((v) => !v);
+  }
+
+  async function handleSave(e) {
     e.preventDefault();
     if (!form.title.trim()) return;
-    await supabase.from("content_pieces").insert({
-      title: form.title,
-      content_type: form.content_type,
-      body_preview: form.body_preview || null,
-      published_at: form.published_at || null,
-      slug: slugify(form.title),
-    });
+    if (editingId) {
+      // Editing keeps the existing slug — the tracking link
+      // already posted publicly stays valid, it just now points
+      // to updated title/notes in the library.
+      await supabase.from("content_pieces").update({
+        title: form.title,
+        content_type: form.content_type,
+        body_preview: form.body_preview || null,
+        published_at: form.published_at || null,
+      }).eq("id", editingId);
+    } else {
+      await supabase.from("content_pieces").insert({
+        title: form.title,
+        content_type: form.content_type,
+        body_preview: form.body_preview || null,
+        published_at: form.published_at || null,
+        slug: slugify(form.title),
+      });
+    }
     setForm({ title: "", content_type: "linkedin_post", body_preview: "", published_at: "" });
+    setEditingId(null);
     setShowCreate(false);
     await load();
   }
@@ -119,7 +150,7 @@ export default function ContentLibrary() {
             </p>
           </div>
           <button
-            onClick={() => setShowCreate((v) => !v)}
+            onClick={startCreate}
             style={{ display: "flex", alignItems: "center", gap: 6, background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
           >
             <Plus size={14} /> Log content
@@ -127,7 +158,7 @@ export default function ContentLibrary() {
         </div>
 
         {showCreate && (
-          <form onSubmit={handleCreate} style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: 18, marginBottom: 20 }}>
+          <form onSubmit={handleSave} style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: 18, marginBottom: 20 }}>
             <div className="mb-3">
               <label style={labelStyle}>Title *</label>
               <input style={inputStyle} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Liquidity event post — Aug week 1" />
@@ -149,7 +180,7 @@ export default function ContentLibrary() {
               <textarea style={{ ...inputStyle, resize: "vertical" }} rows={3} value={form.body_preview} onChange={(e) => setForm((f) => ({ ...f, body_preview: e.target.value }))} placeholder="Paste the post text here for reference" />
             </div>
             <button type="submit" style={{ background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-              Save
+              {editingId ? "Update" : "Save"}
             </button>
           </form>
         )}
@@ -174,10 +205,24 @@ export default function ContentLibrary() {
                       {TYPE_LABELS[p.content_type]} {p.published_at ? `· ${p.published_at}` : ""}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1" style={{ fontSize: 12.5, color: TOKENS.textMuted }}>
-                    <Users size={12} /> {leadCounts[p.slug] ?? 0} leads
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1" style={{ fontSize: 12.5, color: TOKENS.textMuted }}>
+                      <Users size={12} /> {leadCounts[p.slug] ?? 0} leads
+                    </div>
+                    <button onClick={() => startEdit(p)} title="Edit" style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.textMuted, display: "flex" }}>
+                      <Pencil size={13} />
+                    </button>
                   </div>
                 </div>
+
+                {p.body_preview && (
+                  <div style={{
+                    fontSize: 12.5, color: TOKENS.textMuted, lineHeight: 1.5, whiteSpace: "pre-wrap",
+                    background: TOKENS.surfaceRaised, borderRadius: 6, padding: "8px 10px", marginBottom: 8,
+                  }}>
+                    {p.body_preview}
+                  </div>
+                )}
 
                 {linkBuilderFor === p.id ? (
                   <div style={{ background: TOKENS.surfaceRaised, borderRadius: 6, padding: 10, marginTop: 8 }}>
