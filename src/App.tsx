@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { Routes, Route } from "react-router-dom";
-import { BookOpen, ShieldCheck, Mail, TrendingUp, Send } from "lucide-react";
+import { BookOpen, ShieldCheck, Mail, TrendingUp, Send, BarChart3 } from "lucide-react";
 import LeadDashboard from "./LeadDashboard";
 import ComplianceReview from "./ComplianceReview";
 import NewsletterAdmin from "./NewsletterAdmin";
 import DealSignals from "./DealSignals";
 import SequencesOverview from "./SequencesOverview";
+import ReportsView from "./ReportsView";
 import SubscribePage from "./SubscribePage";
 import InquirePage from "./InquirePage";
 import NewsletterActionPage from "./NewsletterActionPage";
@@ -17,7 +18,7 @@ const NAV_BG = "#0A0F16";
 const BORDER = "#2A3644";
 
 function AuthenticatedApp() {
-  const [view, setView] = useState<"ledger" | "compliance" | "newsletter" | "deals" | "sequences">("ledger");
+  const [view, setView] = useState<"ledger" | "compliance" | "newsletter" | "deals" | "sequences" | "reports">("ledger");
   const {
     leads, jurisdictions, loading, error,
     updateStage, updateNotes, addLead, deleteLead, addJurisdiction, bulkAddLeads, updateLeadDetails,
@@ -31,6 +32,7 @@ function AuthenticatedApp() {
     { key: "newsletter", label: "Newsletter", icon: Mail },
     { key: "deals", label: "Deal Signals", icon: TrendingUp },
     { key: "sequences", label: "Sequences", icon: Send },
+    { key: "reports", label: "Reports", icon: BarChart3 },
   ] as const;
 
   return (
@@ -90,6 +92,7 @@ function AuthenticatedApp() {
         {view === "newsletter" && <NewsletterAdmin />}
         {view === "deals" && <DealSignals jurisdictions={jurisdictions} onAddLead={addLead} />}
         {view === "sequences" && <SequencesOverview getAllEnrollments={getAllEnrollments} onStopEnrollment={stopEnrollment} />}
+        {view === "reports" && <ReportsView leads={leads} jurisdictions={jurisdictions} />}
       </div>
     </div>
   );
