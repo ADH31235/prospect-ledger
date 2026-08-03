@@ -208,6 +208,8 @@ export default function LeadDashboard({
   onImportLeads,
   onUpdateDetails,
   onRecalculateScores,
+  onBulkAssignJurisdiction,
+  onBulkDeleteLeads,
   sequences,
   onEnrollLead,
   onGetEnrollments,
@@ -224,6 +226,9 @@ export default function LeadDashboard({
   const [showAddLead, setShowAddLead] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
+  const [selectedForBulk, setSelectedForBulk] = useState(() => new Set());
+  const [bulkJurisdictionId, setBulkJurisdictionId] = useState("");
+  const [bulkWorking, setBulkWorking] = useState(false);
 
   const [query, setQuery] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
@@ -721,17 +726,101 @@ export default function LeadDashboard({
           {activeFilterCount > 0 || query.trim() !== "" ? " (filtered)" : ""}
         </div>
 
+        {/* Bulk action bar — only shown when something's selected */}
+        {selectedForBulk.size > 0 && (
+          <div
+            className="flex items-center gap-3 mb-3 px-4"
+            style={{ background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.gold}55`, borderRadius: 8, height: 44 }}
+          >
+            <span style={{ fontSize: 13, color: TOKENS.textPrimary }}>
+              {selectedForBulk.size} selected
+            </span>
+            <select
+              value={bulkJurisdictionId}
+              onChange={(e) => setBulkJurisdictionId(e.target.value)}
+              style={{
+                background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
+                height: 30, padding: "0 8px", color: TOKENS.textPrimary, fontSize: 12.5,
+              }}
+            >
+              <option value="">Assign jurisdiction…</option>
+              {Object.entries(jurisdictions).sort((a, b) => a[1].country.localeCompare(b[1].country)).map(([id, j]) => (
+                <option key={id} value={id}>{j.country}</option>
+              ))}
+            </select>
+            <button
+              onClick={async () => {
+                if (!bulkJurisdictionId || !onBulkAssignJurisdiction) return;
+                setBulkWorking(true);
+                try {
+                  await onBulkAssignJurisdiction(Array.from(selectedForBulk), bulkJurisdictionId);
+                  setSelectedForBulk(new Set());
+                  setBulkJurisdictionId("");
+                } finally {
+                  setBulkWorking(false);
+                }
+              }}
+              disabled={!bulkJurisdictionId || bulkWorking}
+              style={{
+                background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
+                padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                opacity: !bulkJurisdictionId || bulkWorking ? 0.5 : 1,
+              }}
+            >
+              {bulkWorking ? "Applying…" : "Apply"}
+            </button>
+            <button
+              onClick={async () => {
+                if (!onBulkDeleteLeads) return;
+                if (!window.confirm(`Delete ${selectedForBulk.size} prospects? This cannot be undone.`)) return;
+                setBulkWorking(true);
+                try {
+                  await onBulkDeleteLeads(Array.from(selectedForBulk));
+                  setSelectedForBulk(new Set());
+                } finally {
+                  setBulkWorking(false);
+                }
+              }}
+              disabled={bulkWorking}
+              style={{
+                background: "none", color: TOKENS.riskBlocked, border: `1px solid ${TOKENS.riskBlocked}55`, borderRadius: 6,
+                padding: "6px 12px", fontSize: 12.5, cursor: "pointer",
+              }}
+            >
+              Delete selected
+            </button>
+            <button
+              onClick={() => setSelectedForBulk(new Set())}
+              style={{ background: "none", border: "none", color: TOKENS.textFaint, fontSize: 12.5, cursor: "pointer", marginLeft: "auto" }}
+            >
+              Clear selection
+            </button>
+          </div>
+        )}
+
         {/* Table */}
         <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden" }}>
           <div
             className="grid items-center px-4 py-2.5"
             style={{
-              gridTemplateColumns: "28px 2fr 1.3fr 1fr 1fr 1fr 0.9fr",
+              gridTemplateColumns: "24px 28px 2fr 1.3fr 1fr 1fr 1fr 0.9fr",
               gap: 12,
               background: TOKENS.surfaceRaised,
               borderBottom: `1px solid ${TOKENS.border}`,
             }}
           >
+            <input
+              type="checkbox"
+              checked={filtered.length > 0 && filtered.every((l) => selectedForBulk.has(l.id))}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setSelectedForBulk(new Set(filtered.map((l) => l.id)));
+                } else {
+                  setSelectedForBulk(new Set());
+                }
+              }}
+              style={{ cursor: "pointer" }}
+            />
             <div />
             <SortHeader label="Prospect" sortK="name" />
             <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: TOKENS.textFaint }}>Jurisdiction</div>
@@ -750,7 +839,7 @@ export default function LeadDashboard({
                 onClick={() => setSelectedId(lead.id)}
                 className="grid items-center px-4 cursor-pointer"
                 style={{
-                  gridTemplateColumns: "28px 2fr 1.3fr 1fr 1fr 1fr 0.9fr",
+                  gridTemplateColumns: "24px 28px 2fr 1.3fr 1fr 1fr 1fr 0.9fr",
                   gap: 12,
                   padding: "12px 16px",
                   background: i % 2 === 0 ? TOKENS.surface : "transparent",
@@ -758,6 +847,20 @@ export default function LeadDashboard({
                   opacity: blocked ? 0.55 : 1,
                 }}
               >
+                <input
+                  type="checkbox"
+                  checked={selectedForBulk.has(lead.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => {
+                    setSelectedForBulk((prev) => {
+                      const next = new Set(prev);
+                      if (e.target.checked) next.add(lead.id);
+                      else next.delete(lead.id);
+                      return next;
+                    });
+                  }}
+                  style={{ cursor: "pointer" }}
+                />
                 <Seal risk={j.risk} size={26} />
                 <div>
                   <div className="flex items-center gap-1.5">
@@ -1568,21 +1671,33 @@ function ImportModal({ jurisdictions, onClose, onImport }) {
     setImporting(true);
     setError(null);
     try {
-      const prepared = rawRows.map((row) => ({
-        full_name: mapping.full_name ? row[mapping.full_name] : "",
-        email: mapping.email ? row[mapping.email] : "",
-        phone: mapping.phone ? row[mapping.phone] : "",
-        linkedin_url: mapping.linkedin_url ? row[mapping.linkedin_url] : "",
-        company: mapping.company ? row[mapping.company] : "",
-        job_title: mapping.job_title ? row[mapping.job_title] : "",
-        jurisdiction_id: mapping.jurisdiction ? resolveJurisdiction(row[mapping.jurisdiction]) : null,
-        net_worth_signal: mapping.net_worth_signal ? row[mapping.net_worth_signal] || "unknown" : "unknown",
-        estimated_investable_assets: mapping.estimated_investable_assets ? row[mapping.estimated_investable_assets] : null,
-        liquidity_event: mapping.liquidity_event ? row[mapping.liquidity_event] || "none" : "none",
-        source: mapping.source ? row[mapping.source] || "import" : "import",
-        referred_by: mapping.referred_by ? row[mapping.referred_by] : "",
-        notes: mapping.notes ? row[mapping.notes] : "",
-      }));
+      const prepared = rawRows.map((row) => {
+        const rawCountry = mapping.jurisdiction ? row[mapping.jurisdiction] : "";
+        const resolvedJurisdiction = rawCountry ? resolveJurisdiction(rawCountry) : null;
+        const existingNotes = mapping.notes ? row[mapping.notes] : "";
+        // If we couldn't match the country to a known jurisdiction,
+        // keep the original text in notes rather than silently
+        // losing it — otherwise there's no way to fix it later
+        // without re-importing the source file.
+        const unmatchedNote = rawCountry && !resolvedJurisdiction ? `Unmatched country from import: "${rawCountry}"` : "";
+        const combinedNotes = [existingNotes, unmatchedNote].filter(Boolean).join(" — ");
+
+        return {
+          full_name: mapping.full_name ? row[mapping.full_name] : "",
+          email: mapping.email ? row[mapping.email] : "",
+          phone: mapping.phone ? row[mapping.phone] : "",
+          linkedin_url: mapping.linkedin_url ? row[mapping.linkedin_url] : "",
+          company: mapping.company ? row[mapping.company] : "",
+          job_title: mapping.job_title ? row[mapping.job_title] : "",
+          jurisdiction_id: resolvedJurisdiction,
+          net_worth_signal: mapping.net_worth_signal ? row[mapping.net_worth_signal] || "unknown" : "unknown",
+          estimated_investable_assets: mapping.estimated_investable_assets ? row[mapping.estimated_investable_assets] : null,
+          liquidity_event: mapping.liquidity_event ? row[mapping.liquidity_event] || "none" : "none",
+          source: mapping.source ? row[mapping.source] || "import" : "import",
+          referred_by: mapping.referred_by ? row[mapping.referred_by] : "",
+          notes: combinedNotes,
+        };
+      });
       const res = await onImport(prepared);
       setResult(res);
     } catch (err) {

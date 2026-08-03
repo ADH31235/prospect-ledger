@@ -346,6 +346,55 @@ export function useLeads() {
    * EVERY row, which on 50+ leads shows up as the screen
    * flickering "Loading ledger" over and over.
    */
+  /**
+   * Assigns one jurisdiction to many leads in a single write,
+   * then re-scores all of them in one batch (same reasoning as
+   * recalculateAllScores — avoids a per-row realtime refetch storm).
+   */
+  const bulkAssignJurisdiction = useCallback(async (ids: string[], jurisdictionId: string) => {
+    if (!ids.length) return;
+    const { error } = await supabase
+      .from("leads")
+      .update({ jurisdiction_id: jurisdictionId, updated_at: new Date().toISOString() })
+      .in("id", ids);
+    if (error) throw error;
+
+    const { data: updatedLeads } = await supabase
+      .from("leads")
+      .select("*, jurisdictions(solicitation_risk)")
+      .in("id", ids);
+    const { data: criteria } = await supabase
+      .from("scoring_criteria")
+      .select("criterion_key, weight, active")
+      .eq("active", true);
+
+    const updates = (updatedLeads ?? []).map((lead: any) => {
+      const { score } = scoreLead(
+        { ...lead, jurisdiction_solicitation_risk: lead.jurisdictions?.solicitation_risk ?? null },
+        criteria ?? []
+      );
+      return { id: lead.id, score };
+    });
+    if (updates.length) {
+      await supabase.from("leads").upsert(updates, { onConflict: "id" });
+    }
+
+    await fetchLeads();
+  }, [fetchLeads]);
+
+  /**
+   * Deletes many leads at once — same multi-select flow as bulk
+   * jurisdiction assignment, since once you're selecting a batch
+   * to fix, you'll likely also want to clear out obvious junk
+   * rows from an import at the same time.
+   */
+  const bulkDeleteLeads = useCallback(async (ids: string[]) => {
+    if (!ids.length) return;
+    const { error } = await supabase.from("leads").delete().in("id", ids);
+    if (error) throw error;
+    await fetchLeads();
+  }, [fetchLeads]);
+
   const recalculateAllScores = useCallback(async () => {
     const { data: allLeads, error } = await supabase
       .from("leads")
@@ -380,7 +429,7 @@ export function useLeads() {
   return {
     leads, jurisdictions, loading, error,
     updateStage, updateNotes, addLead, deleteLead, addJurisdiction, bulkAddLeads, updateLeadDetails,
-    recalculateAllScores,
+    recalculateAllScores, bulkAssignJurisdiction, bulkDeleteLeads,
     refetch: fetchLeads,
   };
 }

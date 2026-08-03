@@ -22,7 +22,7 @@ function AuthenticatedApp() {
   const {
     leads, jurisdictions, loading, error,
     updateStage, updateNotes, addLead, deleteLead, addJurisdiction, bulkAddLeads, updateLeadDetails,
-    recalculateAllScores,
+    recalculateAllScores, bulkAssignJurisdiction, bulkDeleteLeads,
   } = useLeads();
   const { sequences, enrollLead, getEnrollmentsForLead, stopEnrollment, getAllEnrollments } = useSequences();
 
@@ -81,6 +81,8 @@ function AuthenticatedApp() {
               onImportLeads={bulkAddLeads}
               onUpdateDetails={updateLeadDetails}
               onRecalculateScores={recalculateAllScores}
+              onBulkAssignJurisdiction={bulkAssignJurisdiction}
+              onBulkDeleteLeads={bulkDeleteLeads}
               sequences={sequences}
               onEnrollLead={enrollLead}
               onGetEnrollments={getEnrollmentsForLead}
