@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { Routes, Route } from "react-router-dom";
-import { BookOpen, ShieldCheck, Mail, TrendingUp, Send, BarChart3 } from "lucide-react";
+import { BookOpen, ShieldCheck, Mail, TrendingUp, Send, BarChart3, Video } from "lucide-react";
 import LeadDashboard from "./LeadDashboard";
 import ComplianceReview from "./ComplianceReview";
 import NewsletterAdmin from "./NewsletterAdmin";
 import DealSignals from "./DealSignals";
 import SequencesOverview from "./SequencesOverview";
 import ReportsView from "./ReportsView";
+import WebinarSignupPage from "./WebinarSignupPage";
+import WebinarsAdmin from "./WebinarsAdmin";
 import SubscribePage from "./SubscribePage";
 import InquirePage from "./InquirePage";
 import NewsletterActionPage from "./NewsletterActionPage";
@@ -18,7 +20,7 @@ const NAV_BG = "#0A0F16";
 const BORDER = "#2A3644";
 
 function AuthenticatedApp() {
-  const [view, setView] = useState<"ledger" | "compliance" | "newsletter" | "deals" | "sequences" | "reports">("ledger");
+  const [view, setView] = useState<"ledger" | "compliance" | "newsletter" | "deals" | "sequences" | "reports" | "webinars">("ledger");
   const {
     leads, jurisdictions, loading, error,
     updateStage, updateNotes, addLead, deleteLead, addJurisdiction, bulkAddLeads, updateLeadDetails,
@@ -33,6 +35,7 @@ function AuthenticatedApp() {
     { key: "deals", label: "Deal Signals", icon: TrendingUp },
     { key: "sequences", label: "Sequences", icon: Send },
     { key: "reports", label: "Reports", icon: BarChart3 },
+    { key: "webinars", label: "Webinars", icon: Video },
   ] as const;
 
   return (
@@ -95,6 +98,7 @@ function AuthenticatedApp() {
         {view === "deals" && <DealSignals jurisdictions={jurisdictions} onAddLead={addLead} />}
         {view === "sequences" && <SequencesOverview getAllEnrollments={getAllEnrollments} onStopEnrollment={stopEnrollment} />}
         {view === "reports" && <ReportsView leads={leads} jurisdictions={jurisdictions} />}
+        {view === "webinars" && <WebinarsAdmin />}
       </div>
     </div>
   );
@@ -113,6 +117,7 @@ export default function App() {
       {/* Public routes — no auth required */}
       <Route path="/subscribe" element={<SubscribePage />} />
       <Route path="/inquire" element={<InquirePage />} />
+      <Route path="/webinar" element={<WebinarSignupPage />} />
       <Route path="/newsletter-action" element={<NewsletterActionPage />} />
       {/* Everything else requires login */}
       <Route path="*" element={<ProtectedApp />} />

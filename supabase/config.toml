@@ -7,3 +7,6 @@ verify_jwt = false
 
 [functions.newsletter-action]
 verify_jwt = false
+
+[functions.capture-inquiry]
+verify_jwt = false
