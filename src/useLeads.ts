@@ -38,6 +38,8 @@ function mapRow(row: any) {
     lastContact: row.last_contact_at ?? null, // add this column, or derive from outreach_events
     createdAt: row.created_at ?? null,
     adTracking: row.ad_tracking ?? null,
+    provenanceUnknown: row.provenance_unknown ?? false,
+    provenanceNote: row.provenance_note ?? "",
     notes: row.notes ?? "",
   };
 }

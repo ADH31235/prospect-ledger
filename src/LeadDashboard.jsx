@@ -881,6 +881,17 @@ export default function LeadDashboard({
                         <Linkedin size={13} />
                       </a>
                     )}
+                    {lead.provenanceUnknown && (
+                      <span
+                        title="Data provenance unresolved — outreach blocked"
+                        style={{
+                          fontSize: 10, padding: "1px 6px", borderRadius: 999, flexShrink: 0,
+                          background: `${TOKENS.riskBlocked}18`, color: TOKENS.riskBlocked, border: `1px solid ${TOKENS.riskBlocked}55`,
+                        }}
+                      >
+                        provenance?
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: 12, color: TOKENS.textFaint }}>{lead.title} · {lead.company}</div>
                 </div>
@@ -1327,6 +1338,39 @@ export default function LeadDashboard({
               </div>
             </div>
 
+            <div style={{ borderTop: `1px solid ${TOKENS.border}`, paddingTop: 16, marginBottom: 16 }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div style={{ fontSize: 13, color: TOKENS.textPrimary }}>
+                    {selected.provenanceUnknown ? "Provenance unresolved" : "Provenance known"}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: TOKENS.textFaint, marginTop: 2 }}>
+                    {selected.provenanceUnknown
+                      ? "Source of this data is unknown — all outreach blocked until this is cleared in Compliance."
+                      : "Flag if you can't trace where this contact's data actually came from."}
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!onUpdateDetails) return;
+                    const next = !selected.provenanceUnknown;
+                    if (next && !window.confirm(`Flag ${selected.name}'s data as unresolved provenance? This blocks all outreach until cleared.`)) {
+                      return;
+                    }
+                    await onUpdateDetails(selected.id, { provenance_unknown: next });
+                  }}
+                  style={{
+                    fontSize: 12, padding: "6px 12px", borderRadius: 6, cursor: "pointer", whiteSpace: "nowrap",
+                    background: selected.provenanceUnknown ? `${TOKENS.riskBlocked}18` : TOKENS.surfaceRaised,
+                    color: selected.provenanceUnknown ? TOKENS.riskBlocked : TOKENS.textMuted,
+                    border: `1px solid ${selected.provenanceUnknown ? TOKENS.riskBlocked : TOKENS.border}`,
+                  }}
+                >
+                  {selected.provenanceUnknown ? "Flagged" : "Flag as unresolved"}
+                </button>
+              </div>
+            </div>
+
             <div style={{ borderTop: `1px solid ${TOKENS.border}`, paddingTop: 16 }}>
               <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: TOKENS.textFaint, marginBottom: 8 }}>
                 Compliance note
@@ -1334,6 +1378,8 @@ export default function LeadDashboard({
               <p style={{ fontSize: 12.5, lineHeight: 1.5, color: TOKENS.textFaint }}>
                 {selected.optedOut
                   ? "This person has opted out. No further contact of any kind should be made."
+                  : selected.provenanceUnknown
+                  ? "Data provenance is unresolved. No outreach should be made until the source is traced and cleared."
                   : getJurisdiction(jurisdictions, selected.jurisdiction).risk === "do_not_contact"
                   ? "This jurisdiction is flagged do-not-contact. Do not initiate outreach until a compliance review clears it."
                   : getJurisdiction(jurisdictions, selected.jurisdiction).risk === "review_required"

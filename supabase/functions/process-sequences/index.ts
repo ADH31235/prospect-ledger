@@ -30,6 +30,12 @@ async function checkOptOutGate(leadId: string) {
   return { ok: true };
 }
 
+async function checkProvenanceGate(leadId: string) {
+  const { data: lead } = await supabase.from("leads").select("provenance_unknown").eq("id", leadId).single();
+  if (lead?.provenance_unknown) return { ok: false, reason: "data provenance unresolved" };
+  return { ok: true };
+}
+
 async function checkJurisdictionGate(leadId: string) {
   const { data: lead } = await supabase
     .from("leads")
@@ -101,6 +107,13 @@ Deno.serve(async () => {
       await supabase.from("scheduled_sends")
         .update({ status: "blocked_opted_out", block_reason: oGate.reason }).eq("id", row.id);
       await supabase.from("sequence_enrollments").update({ status: "stopped" }).eq("id", enrollment.id);
+      continue;
+    }
+
+    const pGate = await checkProvenanceGate(leadId);
+    if (!pGate.ok) {
+      await supabase.from("scheduled_sends")
+        .update({ status: "blocked_provenance", block_reason: pGate.reason }).eq("id", row.id);
       continue;
     }
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ShieldCheck, ShieldAlert, ShieldX, RotateCcw, FileText, Globe2 } from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldX, RotateCcw, FileText, Globe2, AlertTriangle } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
 // Same ledger palette as LeadDashboard.jsx, kept local so this
@@ -18,6 +18,7 @@ const TABS = [
   { key: "jurisdictions", label: "Jurisdictions", icon: Globe2 },
   { key: "templates", label: "Templates", icon: FileText },
   { key: "blocked", label: "Blocked sends", icon: ShieldX },
+  { key: "provenance", label: "Provenance", icon: AlertTriangle },
 ];
 
 function Badge({ children, color }) {
@@ -36,6 +37,8 @@ export default function ComplianceReview() {
   const [jurisdictions, setJurisdictions] = useState([]);
   const [pendingTemplates, setPendingTemplates] = useState([]);
   const [blockedSends, setBlockedSends] = useState([]);
+  const [provenanceLeads, setProvenanceLeads] = useState([]);
+  const [selectedProvenanceLead, setSelectedProvenanceLead] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedJurisdiction, setSelectedJurisdiction] = useState(null);
   const [decisionNotes, setDecisionNotes] = useState("");
@@ -74,9 +77,16 @@ export default function ComplianceReview() {
     const { data: blockedData } = await supabase
       .from("scheduled_sends")
       .select("*, sequence_steps(subject_template, sequences(name)), sequence_enrollments(lead_id, leads(full_name, company))")
-      .in("status", ["blocked_compliance", "blocked_jurisdiction"])
+      .in("status", ["blocked_compliance", "blocked_jurisdiction", "blocked_provenance"])
       .order("scheduled_for", { ascending: true });
     setBlockedSends(blockedData ?? []);
+
+    const { data: provenanceData } = await supabase
+      .from("leads")
+      .select("*")
+      .eq("provenance_unknown", true)
+      .order("created_at", { ascending: true });
+    setProvenanceLeads(provenanceData ?? []);
 
     setLoading(false);
   }, []);
@@ -128,6 +138,23 @@ export default function ComplianceReview() {
     await loadAll();
   }
 
+  async function clearProvenance(lead) {
+    if (!reviewerName.trim()) {
+      alert("Enter your name before clearing a provenance flag.");
+      return;
+    }
+    await supabase.from("leads").update({ provenance_unknown: false }).eq("id", lead.id);
+    await supabase.from("compliance_reviews").insert({
+      lead_id: lead.id,
+      reviewed_by: reviewerName,
+      review_outcome: "provenance_cleared",
+      review_notes: decisionNotes,
+    });
+    setSelectedProvenanceLead(null);
+    setDecisionNotes("");
+    await loadAll();
+  }
+
   const reviewRequiredCount = jurisdictions.filter((j) => j.solicitation_risk === "review_required").length;
 
   return (
@@ -141,7 +168,7 @@ export default function ComplianceReview() {
               Compliance Review
             </h1>
             <p style={{ color: TOKENS.textMuted, fontSize: 13, marginTop: 2 }}>
-              {reviewRequiredCount} jurisdiction{reviewRequiredCount === 1 ? "" : "s"} awaiting decision · {pendingTemplates.length} template{pendingTemplates.length === 1 ? "" : "s"} unapproved
+              {reviewRequiredCount} jurisdiction{reviewRequiredCount === 1 ? "" : "s"} awaiting decision · {pendingTemplates.length} template{pendingTemplates.length === 1 ? "" : "s"} unapproved · {provenanceLeads.length} provenance flag{provenanceLeads.length === 1 ? "" : "s"}
             </p>
           </div>
           <input
@@ -291,6 +318,34 @@ export default function ComplianceReview() {
                 ))}
               </div>
             )}
+            {tab === "provenance" && (
+              <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden" }}>
+                {provenanceLeads.length === 0 && (
+                  <div style={{ padding: 24, textAlign: "center", color: TOKENS.textFaint, fontSize: 13 }}>
+                    Nothing flagged right now.
+                  </div>
+                )}
+                {provenanceLeads.map((lead, i) => (
+                  <div
+                    key={lead.id}
+                    onClick={() => setSelectedProvenanceLead(lead)}
+                    className="flex items-center justify-between px-4 py-3 cursor-pointer"
+                    style={{
+                      background: i % 2 === 0 ? TOKENS.surface : "transparent",
+                      borderBottom: i < provenanceLeads.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 14 }}>{lead.full_name}</div>
+                      <div style={{ fontSize: 12, color: TOKENS.textFaint }}>
+                        {lead.company ?? "—"} · source: {lead.source ?? "unknown"}
+                      </div>
+                    </div>
+                    <Badge color={TOKENS.riskBlocked}>Unresolved</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -349,6 +404,48 @@ export default function ComplianceReview() {
                 Block this market
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Provenance clearing drawer */}
+      {selectedProvenanceLead && (
+        <div
+          onClick={() => setSelectedProvenanceLead(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(6,9,13,0.6)", display: "flex", justifyContent: "flex-end", zIndex: 40 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 380, maxWidth: "90vw", height: "100%", background: TOKENS.surface, borderLeft: `1px solid ${TOKENS.border}`, padding: 22 }}
+          >
+            <div style={{ fontFamily: "'Newsreader', serif", fontSize: 19, marginBottom: 4 }}>
+              {selectedProvenanceLead.full_name}
+            </div>
+            <div style={{ fontSize: 12.5, color: TOKENS.textFaint, marginBottom: 18 }}>
+              {selectedProvenanceLead.company ?? "—"} · source: {selectedProvenanceLead.source ?? "unknown"}
+            </div>
+
+            <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: TOKENS.textFaint, marginBottom: 6 }}>
+              How was this traced?
+            </div>
+            <textarea
+              value={decisionNotes}
+              onChange={(e) => setDecisionNotes(e.target.value)}
+              rows={4}
+              placeholder="e.g. confirmed this came from the Apollo export dated..., or matches a conference list from..."
+              style={{
+                width: "100%", background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
+                padding: 10, fontSize: 13, color: TOKENS.textPrimary, marginBottom: 16, resize: "vertical",
+              }}
+            />
+
+            <button
+              onClick={() => clearProvenance(selectedProvenanceLead)}
+              style={{ width: "100%", padding: "9px 0", borderRadius: 6, fontSize: 13, cursor: "pointer", background: `${TOKENS.riskLow}18`, color: TOKENS.riskLow, border: `1px solid ${TOKENS.riskLow}55` }}
+            >
+              <ShieldCheck size={14} style={{ display: "inline", marginRight: 6, verticalAlign: -2 }} />
+              Clear — source confirmed
+            </button>
           </div>
         </div>
       )}

@@ -20,7 +20,7 @@ import { supabase } from "./supabaseClient";
 export async function enrollLead(leadId: string, sequenceId: string) {
   const { data: lead, error: leadErr } = await supabase
     .from("leads")
-    .select("id, jurisdiction_id, jurisdictions(solicitation_risk)")
+    .select("id, jurisdiction_id, provenance_unknown, jurisdictions(solicitation_risk)")
     .eq("id", leadId)
     .single();
   if (leadErr || !lead) throw leadErr ?? new Error("Lead not found");
@@ -28,6 +28,12 @@ export async function enrollLead(leadId: string, sequenceId: string) {
   if ((lead as any).jurisdictions?.solicitation_risk === "do_not_contact") {
     throw new Error(
       `Cannot enroll lead ${leadId}: jurisdiction is flagged do-not-contact`
+    );
+  }
+
+  if ((lead as any).provenance_unknown) {
+    throw new Error(
+      `Cannot enroll lead ${leadId}: data provenance is unresolved — clear it in Compliance first`
     );
   }
 
@@ -91,6 +97,16 @@ async function checkOptOutGate(leadId: string): Promise<{ ok: boolean; reason?: 
     .eq("id", leadId)
     .single();
   if (lead?.opted_out) return { ok: false, reason: "lead has opted out" };
+  return { ok: true };
+}
+
+async function checkProvenanceGate(leadId: string): Promise<{ ok: boolean; reason?: string }> {
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("provenance_unknown")
+    .eq("id", leadId)
+    .single();
+  if (lead?.provenance_unknown) return { ok: false, reason: "data provenance unresolved" };
   return { ok: true };
 }
 
@@ -206,7 +222,19 @@ export async function processDueSends(emailConfig: {
       continue;
     }
 
-    // Gate 2: jurisdiction
+    // Gate 2: data provenance — if we don't know where this lead's
+    // data came from, we can't fulfil GDPR's Article 14 disclosure
+    // obligation, so it's blocked the same way an opted-out lead is.
+    const pGate = await checkProvenanceGate(leadId);
+    if (!pGate.ok) {
+      await supabase
+        .from("scheduled_sends")
+        .update({ status: "blocked_provenance", block_reason: pGate.reason })
+        .eq("id", row.id);
+      continue;
+    }
+
+    // Gate 3: jurisdiction
     const jGate = await checkJurisdictionGate(leadId);
     if (!jGate.ok) {
       await supabase
@@ -216,7 +244,7 @@ export async function processDueSends(emailConfig: {
       continue;
     }
 
-    // Gate 3: compliance approval on the template
+    // Gate 4: compliance approval on the template
     const cGate = await checkComplianceGate(step);
     if (!cGate.ok) {
       await supabase
