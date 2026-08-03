@@ -15,6 +15,7 @@ import {
   FileUp,
   SlidersHorizontal,
   Linkedin,
+  RefreshCw,
 } from "lucide-react";
 
 // ============================================================
@@ -206,6 +207,7 @@ export default function LeadDashboard({
   onAddJurisdiction,
   onImportLeads,
   onUpdateDetails,
+  onRecalculateScores,
 } = {}) {
   const [localLeads, setLocalLeads] = useState(initialLeads);
   const leads = leadsProp ?? localLeads;
@@ -217,6 +219,7 @@ export default function LeadDashboard({
 
   const [showAddLead, setShowAddLead] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
 
   const [query, setQuery] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
@@ -437,6 +440,27 @@ export default function LeadDashboard({
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TOKENS.textFaint, textAlign: "right" }}>
               as of {formatDate("2026-07-31")}
             </div>
+            <button
+              onClick={async () => {
+                if (!onRecalculateScores) return;
+                setRecalculating(true);
+                try {
+                  const result = await onRecalculateScores();
+                  alert(`Rescored ${result.succeeded} of ${result.total} prospects.`);
+                } finally {
+                  setRecalculating(false);
+                }
+              }}
+              disabled={recalculating}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: TOKENS.surfaceRaised, color: TOKENS.textPrimary, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
+                padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: recalculating ? "default" : "pointer",
+                opacity: recalculating ? 0.6 : 1,
+              }}
+            >
+              <RefreshCw size={14} /> {recalculating ? "Scoring…" : "Recalculate scores"}
+            </button>
             <button
               onClick={() => setShowImport(true)}
               style={{

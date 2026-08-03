@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
+import { scoreLeadFromSupabase } from "./scoring";
 
 // ============================================================
 // Maps a Supabase row (leads joined with jurisdictions and
@@ -197,10 +198,16 @@ export function useLeads() {
       .single();
 
     if (error) throw error;
+    // Score immediately — a lead should never sit at the default 0
+    // score just because nothing happened to trigger scoring yet.
+    try {
+      await scoreLeadFromSupabase(supabase, data.id);
+    } catch (scoreErr) {
+      console.error("Scoring failed for new lead", scoreErr);
+    }
     await fetchLeads();
     return data;
   }, [fetchLeads]);
-
 
   /**
    * Deletes a lead permanently. Cascades to related
@@ -274,6 +281,16 @@ export function useLeads() {
       console.error("Bulk import failed", error);
       return { inserted: 0, failed: prepared.length, error: error.message };
     }
+    // Score every imported lead. Sequential on purpose (not
+    // Promise.all) to avoid hammering Supabase with a burst of
+    // concurrent writes on a large import.
+    for (const row of data ?? []) {
+      try {
+        await scoreLeadFromSupabase(supabase, row.id);
+      } catch (scoreErr) {
+        console.error(`Scoring failed for imported lead ${row.id}`, scoreErr);
+      }
+    }
     await fetchLeads();
     return { inserted: data?.length ?? 0, failed: prepared.length - (data?.length ?? 0) };
   }, [fetchLeads]);
@@ -290,12 +307,42 @@ export function useLeads() {
       .update({ ...fields, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) throw error;
+    // Re-score: editing jurisdiction, net worth signal, liquidity
+    // event, etc. all change what the score should be.
+    try {
+      await scoreLeadFromSupabase(supabase, id);
+    } catch (scoreErr) {
+      console.error("Re-scoring failed after detail edit", scoreErr);
+    }
     await fetchLeads();
+  }, [fetchLeads]);
+
+  /**
+   * Recalculates scores for every lead in one pass — for the
+   * backlog of leads that existed before scoring was wired in
+   * everywhere else, or if you ever change the scoring weights
+   * and want everything re-evaluated against the new criteria.
+   */
+  const recalculateAllScores = useCallback(async () => {
+    const { data: allLeads, error } = await supabase.from("leads").select("id");
+    if (error) throw error;
+    let succeeded = 0;
+    for (const lead of allLeads ?? []) {
+      try {
+        await scoreLeadFromSupabase(supabase, lead.id);
+        succeeded++;
+      } catch (scoreErr) {
+        console.error(`Failed to score lead ${lead.id}`, scoreErr);
+      }
+    }
+    await fetchLeads();
+    return { total: allLeads?.length ?? 0, succeeded };
   }, [fetchLeads]);
 
   return {
     leads, jurisdictions, loading, error,
     updateStage, updateNotes, addLead, deleteLead, addJurisdiction, bulkAddLeads, updateLeadDetails,
+    recalculateAllScores,
     refetch: fetchLeads,
   };
 }

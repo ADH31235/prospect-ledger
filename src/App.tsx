@@ -18,6 +18,7 @@ function AuthenticatedApp() {
   const {
     leads, jurisdictions, loading, error,
     updateStage, updateNotes, addLead, deleteLead, addJurisdiction, bulkAddLeads, updateLeadDetails,
+    recalculateAllScores,
   } = useLeads();
 
   const tabs = [
@@ -72,6 +73,7 @@ function AuthenticatedApp() {
               onAddJurisdiction={addJurisdiction}
               onImportLeads={bulkAddLeads}
               onUpdateDetails={updateLeadDetails}
+              onRecalculateScores={recalculateAllScores}
             />
           )
         )}
