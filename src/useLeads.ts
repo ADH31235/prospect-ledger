@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
-import { scoreLeadFromSupabase } from "./scoring";
+import { scoreLeadFromSupabase, scoreLead } from "./scoring";
 
 // ============================================================
 // Maps a Supabase row (leads joined with jurisdictions and
@@ -281,14 +281,30 @@ export function useLeads() {
       console.error("Bulk import failed", error);
       return { inserted: 0, failed: prepared.length, error: error.message };
     }
-    // Score every imported lead. Sequential on purpose (not
-    // Promise.all) to avoid hammering Supabase with a burst of
-    // concurrent writes on a large import.
-    for (const row of data ?? []) {
-      try {
-        await scoreLeadFromSupabase(supabase, row.id);
-      } catch (scoreErr) {
-        console.error(`Scoring failed for imported lead ${row.id}`, scoreErr);
+
+    // Score all imported rows in one batch — see recalculateAllScores
+    // for why this isn't a per-row loop (avoids a refetch-storm from
+    // the realtime subscription on larger imports).
+    if (data?.length) {
+      const ids = data.map((r: any) => r.id);
+      const { data: insertedWithJurisdiction } = await supabase
+        .from("leads")
+        .select("*, jurisdictions(solicitation_risk)")
+        .in("id", ids);
+      const { data: criteria } = await supabase
+        .from("scoring_criteria")
+        .select("criterion_key, weight, active")
+        .eq("active", true);
+
+      const updates = (insertedWithJurisdiction ?? []).map((lead: any) => {
+        const { score } = scoreLead(
+          { ...lead, jurisdiction_solicitation_risk: lead.jurisdictions?.solicitation_risk ?? null },
+          criteria ?? []
+        );
+        return { id: lead.id, score };
+      });
+      if (updates.length) {
+        await supabase.from("leads").upsert(updates, { onConflict: "id" });
       }
     }
     await fetchLeads();
@@ -322,21 +338,42 @@ export function useLeads() {
    * backlog of leads that existed before scoring was wired in
    * everywhere else, or if you ever change the scoring weights
    * and want everything re-evaluated against the new criteria.
+   *
+   * Deliberately a single fetch + single batch write, not a loop
+   * of per-lead updates — updating leads one at a time triggers
+   * the realtime subscription to refetch the whole list after
+   * EVERY row, which on 50+ leads shows up as the screen
+   * flickering "Loading ledger" over and over.
    */
   const recalculateAllScores = useCallback(async () => {
-    const { data: allLeads, error } = await supabase.from("leads").select("id");
+    const { data: allLeads, error } = await supabase
+      .from("leads")
+      .select("*, jurisdictions(solicitation_risk)");
     if (error) throw error;
-    let succeeded = 0;
-    for (const lead of allLeads ?? []) {
-      try {
-        await scoreLeadFromSupabase(supabase, lead.id);
-        succeeded++;
-      } catch (scoreErr) {
-        console.error(`Failed to score lead ${lead.id}`, scoreErr);
-      }
+
+    const { data: criteria, error: critErr } = await supabase
+      .from("scoring_criteria")
+      .select("criterion_key, weight, active")
+      .eq("active", true);
+    if (critErr) throw critErr;
+
+    const updates = (allLeads ?? []).map((lead: any) => {
+      const { score } = scoreLead(
+        { ...lead, jurisdiction_solicitation_risk: lead.jurisdictions?.solicitation_risk ?? null },
+        criteria ?? []
+      );
+      return { id: lead.id, score };
+    });
+
+    if (updates.length) {
+      const { error: upsertErr } = await supabase
+        .from("leads")
+        .upsert(updates, { onConflict: "id" });
+      if (upsertErr) throw upsertErr;
     }
+
     await fetchLeads();
-    return { total: allLeads?.length ?? 0, succeeded };
+    return { total: updates.length, succeeded: updates.length };
   }, [fetchLeads]);
 
   return {
