@@ -92,6 +92,34 @@ async function notifyNewInquiry(lead: any) {
   }
 }
 
+// Simple acknowledgment to whoever submitted the form — this is
+// a transactional reply to their own direct request, not a
+// marketing email, so it doesn't need the newsletter's double
+// opt-in treatment. NOTE: under Resend's sandbox mode (no
+// verified domain yet), this will only actually deliver if the
+// inquirer's email happens to match your own Resend signup email
+// — same restriction as everywhere else until you verify a domain.
+async function sendConfirmationToInquirer(fullName: string, email: string) {
+  try {
+    const firstName = fullName.trim().split(" ")[0];
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${Deno.env.get("RESEND_API_KEY")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: `${Deno.env.get("FROM_NAME")} <${Deno.env.get("FROM_EMAIL")}>`,
+        to: [email],
+        subject: "Thanks for reaching out",
+        text: `Hi ${firstName},\n\nThanks for getting in touch — I've received your details and will reach out shortly to arrange a conversation.\n\nBest,\n${Deno.env.get("FROM_NAME")}`,
+      }),
+    });
+  } catch {
+    // Best-effort — don't fail the whole submission over this.
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -139,6 +167,7 @@ Deno.serve(async (req) => {
 
     await scoreLead(created.id);
     await notifyNewInquiry({ ...created, country_text });
+    await sendConfirmationToInquirer(full_name, email);
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
