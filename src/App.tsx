@@ -9,6 +9,7 @@ import SubscribePage from "./SubscribePage";
 import NewsletterActionPage from "./NewsletterActionPage";
 import Login, { useSession } from "./Login";
 import { useLeads } from "./useLeads";
+import { useSequences } from "./useSequences";
 
 const NAV_BG = "#0A0F16";
 const BORDER = "#2A3644";
@@ -20,6 +21,7 @@ function AuthenticatedApp() {
     updateStage, updateNotes, addLead, deleteLead, addJurisdiction, bulkAddLeads, updateLeadDetails,
     recalculateAllScores,
   } = useLeads();
+  const { sequences, enrollLead, getEnrollmentsForLead, stopEnrollment } = useSequences();
 
   const tabs = [
     { key: "ledger", label: "Ledger", icon: BookOpen },
@@ -74,6 +76,10 @@ function AuthenticatedApp() {
               onImportLeads={bulkAddLeads}
               onUpdateDetails={updateLeadDetails}
               onRecalculateScores={recalculateAllScores}
+              sequences={sequences}
+              onEnrollLead={enrollLead}
+              onGetEnrollments={getEnrollmentsForLead}
+              onStopEnrollment={stopEnrollment}
             />
           )
         )}

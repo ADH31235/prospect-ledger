@@ -208,6 +208,10 @@ export default function LeadDashboard({
   onImportLeads,
   onUpdateDetails,
   onRecalculateScores,
+  sequences,
+  onEnrollLead,
+  onGetEnrollments,
+  onStopEnrollment,
 } = {}) {
   const [localLeads, setLocalLeads] = useState(initialLeads);
   const leads = leadsProp ?? localLeads;
@@ -377,9 +381,18 @@ export default function LeadDashboard({
 
   const selected = leads.find((l) => l.id === selectedId) ?? null;
 
+  const [enrollments, setEnrollments] = useState([]);
+  const [selectedSequenceId, setSelectedSequenceId] = useState("");
+  const [enrolling, setEnrolling] = useState(false);
+
   useEffect(() => {
     setNoteDraft(selected?.notes ?? "");
     setEditingDetails(false);
+    setSelectedSequenceId("");
+    setEnrollments([]);
+    if (selectedId && onGetEnrollments) {
+      onGetEnrollments(selectedId).then(setEnrollments).catch(() => setEnrollments([]));
+    }
   }, [selectedId]);
 
   async function handleSaveNotes() {
@@ -1070,6 +1083,89 @@ export default function LeadDashboard({
             >
               {savingNotes ? "Saving…" : "Save notes"}
             </button>
+
+            <div style={{ borderTop: `1px solid ${TOKENS.border}`, paddingTop: 16, marginBottom: 16 }}>
+              <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: TOKENS.textFaint, marginBottom: 10 }}>
+                Sequences
+              </div>
+
+              {enrollments.length > 0 && (
+                <div className="mb-3" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {enrollments.map((e) => (
+                    <div
+                      key={e.id}
+                      className="flex items-center justify-between"
+                      style={{
+                        background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
+                        padding: "8px 10px",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 12.5, color: TOKENS.textPrimary }}>{e.sequences?.name ?? "Unknown sequence"}</div>
+                        <div style={{ fontSize: 11, color: TOKENS.textFaint, marginTop: 1 }}>
+                          {e.status} · step {e.current_step ?? 0} · enrolled {formatDate(e.enrolled_at)}
+                        </div>
+                      </div>
+                      {e.status === "active" && (
+                        <button
+                          onClick={async () => {
+                            if (!onStopEnrollment) return;
+                            if (!window.confirm("Stop this sequence? Any pending sends for it will be cancelled.")) return;
+                            await onStopEnrollment(e.id);
+                            if (onGetEnrollments) setEnrollments(await onGetEnrollments(selected.id));
+                          }}
+                          style={{
+                            fontSize: 11.5, padding: "4px 10px", borderRadius: 6, cursor: "pointer",
+                            background: `${TOKENS.riskBlocked}18`, color: TOKENS.riskBlocked, border: `1px solid ${TOKENS.riskBlocked}55`,
+                          }}
+                        >
+                          Stop
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <select
+                  value={selectedSequenceId}
+                  onChange={(e) => setSelectedSequenceId(e.target.value)}
+                  style={{
+                    flex: 1, background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
+                    height: 32, padding: "0 8px", color: TOKENS.textPrimary, fontSize: 12.5,
+                  }}
+                >
+                  <option value="">Select sequence…</option>
+                  {(sequences ?? []).map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={async () => {
+                    if (!selectedSequenceId || !onEnrollLead) return;
+                    setEnrolling(true);
+                    try {
+                      await onEnrollLead(selected.id, selectedSequenceId);
+                      setSelectedSequenceId("");
+                      if (onGetEnrollments) setEnrollments(await onGetEnrollments(selected.id));
+                    } catch (err) {
+                      alert(`Couldn't enroll: ${err?.message ?? err}`);
+                    } finally {
+                      setEnrolling(false);
+                    }
+                  }}
+                  disabled={!selectedSequenceId || enrolling}
+                  style={{
+                    background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
+                    padding: "0 14px", fontSize: 12.5, fontWeight: 600, cursor: enrolling ? "default" : "pointer",
+                    opacity: !selectedSequenceId || enrolling ? 0.6 : 1,
+                  }}
+                >
+                  {enrolling ? "Enrolling…" : "Enroll"}
+                </button>
+              </div>
+            </div>
 
             <div style={{ borderTop: `1px solid ${TOKENS.border}`, paddingTop: 16, marginBottom: 16 }}>
               <div className="flex items-center justify-between">
