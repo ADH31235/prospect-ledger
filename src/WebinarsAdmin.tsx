@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Plus, Users, ExternalLink, Copy } from "lucide-react";
+import { Plus, Users, ExternalLink, Copy, Pencil } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
 const TOKENS = {
@@ -19,6 +19,7 @@ export default function WebinarsAdmin() {
   const [registrationCounts, setRegistrationCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ title: "", description: "", scheduled_at: "", location_or_link: "" });
   const [copiedId, setCopiedId] = useState(null);
 
@@ -42,16 +43,48 @@ export default function WebinarsAdmin() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleCreate(e) {
+  // datetime-local inputs need "YYYY-MM-DDTHH:mm" in LOCAL time,
+  // not the UTC ISO string the database stores — this converts
+  // back for editing an existing event.
+  function toLocalInputValue(isoString) {
+    const d = new Date(isoString);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function startEdit(webinar) {
+    setForm({
+      title: webinar.title,
+      description: webinar.description || "",
+      scheduled_at: toLocalInputValue(webinar.scheduled_at),
+      location_or_link: webinar.location_or_link || "",
+    });
+    setEditingId(webinar.id);
+    setShowCreate(true);
+  }
+
+  function startCreate() {
+    setForm({ title: "", description: "", scheduled_at: "", location_or_link: "" });
+    setEditingId(null);
+    setShowCreate((v) => !v);
+  }
+
+  async function handleSave(e) {
     e.preventDefault();
     if (!form.title.trim() || !form.scheduled_at) return;
-    await supabase.from("webinars").insert({
+    const payload = {
       title: form.title,
       description: form.description || null,
       scheduled_at: new Date(form.scheduled_at).toISOString(),
       location_or_link: form.location_or_link || null,
-    });
+    };
+    if (editingId) {
+      await supabase.from("webinars").update(payload).eq("id", editingId);
+    } else {
+      await supabase.from("webinars").insert(payload);
+    }
     setForm({ title: "", description: "", scheduled_at: "", location_or_link: "" });
+    setEditingId(null);
     setShowCreate(false);
     await load();
   }
@@ -90,7 +123,7 @@ export default function WebinarsAdmin() {
             </p>
           </div>
           <button
-            onClick={() => setShowCreate((v) => !v)}
+            onClick={startCreate}
             style={{ display: "flex", alignItems: "center", gap: 6, background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
           >
             <Plus size={14} /> Create event
@@ -98,7 +131,7 @@ export default function WebinarsAdmin() {
         </div>
 
         {showCreate && (
-          <form onSubmit={handleCreate} style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: 18, marginBottom: 20 }}>
+          <form onSubmit={handleSave} style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: 18, marginBottom: 20 }}>
             <div className="mb-3">
               <label style={labelStyle}>Title *</label>
               <input style={inputStyle} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Navigating a Liquidity Event: What Comes Next" />
@@ -118,7 +151,7 @@ export default function WebinarsAdmin() {
               <textarea style={{ ...inputStyle, resize: "vertical" }} rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
             </div>
             <button type="submit" style={{ background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-              Save event
+              {editingId ? "Update event" : "Save event"}
             </button>
           </form>
         )}
@@ -149,6 +182,9 @@ export default function WebinarsAdmin() {
                       <div className="flex items-center gap-1" style={{ fontSize: 12.5, color: TOKENS.textMuted }}>
                         <Users size={12} /> {registrationCounts[w.id] ?? 0}
                       </div>
+                      <button onClick={() => startEdit(w)} title="Edit event" style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.textMuted, display: "flex" }}>
+                        <Pencil size={13} />
+                      </button>
                       <select
                         value={w.status}
                         onChange={(e) => updateStatus(w.id, e.target.value)}
