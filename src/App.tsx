@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Routes, Route } from "react-router-dom";
-import { BookOpen, ShieldCheck, Mail, TrendingUp, Send, BarChart3, Video } from "lucide-react";
+import { BookOpen, ShieldCheck, Mail, TrendingUp, Send, BarChart3, Video, FileStack } from "lucide-react";
 import LeadDashboard from "./LeadDashboard";
 import ComplianceReview from "./ComplianceReview";
 import NewsletterAdmin from "./NewsletterAdmin";
@@ -9,6 +9,7 @@ import SequencesOverview from "./SequencesOverview";
 import ReportsView from "./ReportsView";
 import WebinarSignupPage from "./WebinarSignupPage";
 import WebinarsAdmin from "./WebinarsAdmin";
+import ContentLibrary from "./ContentLibrary";
 import SubscribePage from "./SubscribePage";
 import InquirePage from "./InquirePage";
 import NewsletterActionPage from "./NewsletterActionPage";
@@ -20,7 +21,7 @@ const NAV_BG = "#0A0F16";
 const BORDER = "#2A3644";
 
 function AuthenticatedApp() {
-  const [view, setView] = useState<"ledger" | "compliance" | "newsletter" | "deals" | "sequences" | "reports" | "webinars">("ledger");
+  const [view, setView] = useState<"ledger" | "compliance" | "newsletter" | "deals" | "sequences" | "reports" | "webinars" | "content">("ledger");
   const {
     leads, jurisdictions, loading, error,
     updateStage, updateNotes, addLead, deleteLead, addJurisdiction, bulkAddLeads, updateLeadDetails,
@@ -36,6 +37,7 @@ function AuthenticatedApp() {
     { key: "sequences", label: "Sequences", icon: Send },
     { key: "reports", label: "Reports", icon: BarChart3 },
     { key: "webinars", label: "Webinars", icon: Video },
+    { key: "content", label: "Content", icon: FileStack },
   ] as const;
 
   return (
@@ -99,6 +101,7 @@ function AuthenticatedApp() {
         {view === "sequences" && <SequencesOverview getAllEnrollments={getAllEnrollments} onStopEnrollment={stopEnrollment} />}
         {view === "reports" && <ReportsView leads={leads} jurisdictions={jurisdictions} />}
         {view === "webinars" && <WebinarsAdmin />}
+        {view === "content" && <ContentLibrary />}
       </div>
     </div>
   );

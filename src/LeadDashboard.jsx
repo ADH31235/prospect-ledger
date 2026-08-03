@@ -13,6 +13,7 @@ import {
   Plus,
   Trash2,
   FileUp,
+  FileDown,
   SlidersHorizontal,
   Linkedin,
   RefreshCw,
@@ -478,6 +479,42 @@ export default function LeadDashboard({
               }}
             >
               <RefreshCw size={14} /> {recalculating ? "Scoring…" : "Recalculate scores"}
+            </button>
+            <button
+              onClick={() => {
+                const rows = filtered.map((lead) => ({
+                  full_name: lead.name,
+                  email: lead.email ?? "",
+                  phone: lead.phone ?? "",
+                  linkedin_url: lead.linkedinUrl ?? "",
+                  company: lead.company ?? "",
+                  job_title: lead.title ?? "",
+                  jurisdiction: getJurisdiction(jurisdictions, lead.jurisdiction).country ?? "",
+                  stage: lead.stage ?? "",
+                  score: lead.score ?? 0,
+                  estimated_investable_assets: lead.assets ?? "",
+                  net_worth_signal: lead.netWorth ?? "",
+                  liquidity_event: lead.liquidityEvent ?? "",
+                  source: lead.source ?? "",
+                  referred_by: lead.referredBy ?? "",
+                  opted_out: lead.optedOut ? "yes" : "no",
+                  provenance_unknown: lead.provenanceUnknown ? "yes" : "no",
+                  notes: lead.notes ?? "",
+                  created_at: lead.createdAt ?? "",
+                }));
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Prospects");
+                const dateStr = new Date().toISOString().slice(0, 10);
+                XLSX.writeFile(wb, `prospect-ledger-export-${dateStr}.xlsx`);
+              }}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: TOKENS.surfaceRaised, color: TOKENS.textPrimary, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
+                padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              <FileDown size={14} /> Export ({filtered.length})
             </button>
             <button
               onClick={() => setShowImport(true)}

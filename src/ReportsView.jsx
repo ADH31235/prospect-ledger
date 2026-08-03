@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Clock } from "lucide-react";
 import { useStageHistory } from "./useStageHistory";
+import { supabase } from "./supabaseClient";
 
 const TOKENS = {
   bg: "#0E141C", surface: "#161E29", surfaceRaised: "#1C2733",
@@ -52,6 +53,13 @@ export default function ReportsView({ leads, jurisdictions }) {
   const [recentChanges, setRecentChanges] = useState([]);
   const [allHistory, setAllHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [contentPieces, setContentPieces] = useState([]);
+
+  useEffect(() => {
+    supabase.from("content_pieces").select("slug, title, content_type").then(({ data }) => {
+      setContentPieces(data ?? []);
+    });
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -141,6 +149,12 @@ export default function ReportsView({ leads, jurisdictions }) {
       if (campaign) campaignCounts[campaign] = (campaignCounts[campaign] ?? 0) + 1;
     }
 
+    const contentCounts = {};
+    for (const l of leads) {
+      const slug = l.adTracking?.utm_content;
+      if (slug) contentCounts[slug] = (contentCounts[slug] ?? 0) + 1;
+    }
+
     const totalPipelineValue = leads
       .filter((l) => l.stage !== "disqualified")
       .reduce((sum, l) => sum + (l.assets ?? 0), 0);
@@ -152,7 +166,7 @@ export default function ReportsView({ leads, jurisdictions }) {
     const qualifiedOrClient = (stageCounts.qualified ?? 0) + (stageCounts.client ?? 0);
     const conversionRate = leads.length ? Math.round((qualifiedOrClient / leads.length) * 100) : 0;
 
-    return { stageCounts, sourceCounts, jurisdictionCounts, campaignCounts, totalPipelineValue, avgScore, conversionRate };
+    return { stageCounts, sourceCounts, jurisdictionCounts, campaignCounts, contentCounts, totalPipelineValue, avgScore, conversionRate };
   }, [leads, jurisdictions]);
 
   const weekly = useMemo(() => weeklyBuckets(leads), [leads]);
@@ -165,6 +179,10 @@ export default function ReportsView({ leads, jurisdictions }) {
   const maxJurisdiction = Math.max(1, ...topJurisdictions.map(([, c]) => c));
   const topCampaigns = Object.entries(stats.campaignCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
   const maxCampaign = Math.max(1, ...topCampaigns.map(([, c]) => c));
+
+  const contentBySlug = Object.fromEntries(contentPieces.map((c) => [c.slug, c]));
+  const topContent = Object.entries(stats.contentCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const maxContent = Math.max(1, ...topContent.map(([, c]) => c));
 
   return (
     <div style={{ background: TOKENS.bg, minHeight: "100%", color: TOKENS.textPrimary, fontFamily: "'Inter', sans-serif" }}>
@@ -345,6 +363,30 @@ export default function ReportsView({ leads, jurisdictions }) {
                   <div style={{ width: 24, textAlign: "right", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>{count}</div>
                 </div>
               ))}
+            </div>
+          </>
+        )}
+
+        {topContent.length > 0 && (
+          <>
+            <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+              By content piece
+            </div>
+            <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", marginBottom: 32 }}>
+              {topContent.map(([slug, count]) => {
+                const piece = contentBySlug[slug];
+                return (
+                  <div key={slug} className="flex items-center gap-3" style={{ marginBottom: 10 }}>
+                    <div style={{ width: 260, fontSize: 12, color: TOKENS.textMuted, flexShrink: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {piece ? piece.title : slug}
+                    </div>
+                    <div style={{ flex: 1, background: TOKENS.surfaceRaised, borderRadius: 4, height: 16 }}>
+                      <div style={{ width: `${(count / maxContent) * 100}%`, height: "100%", background: "#8B7FD9", borderRadius: 4 }} />
+                    </div>
+                    <div style={{ width: 24, textAlign: "right", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>{count}</div>
+                  </div>
+                );
+              })}
             </div>
           </>
         )}
