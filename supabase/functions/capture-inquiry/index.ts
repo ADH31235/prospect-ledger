@@ -84,7 +84,7 @@ async function notifyNewInquiry(lead: any) {
         from: `${Deno.env.get("FROM_NAME")} <${Deno.env.get("FROM_EMAIL")}>`,
         to: [notifyEmail],
         subject: `New inquiry: ${lead.full_name}`,
-        text: `New inbound inquiry received.\n\nName: ${lead.full_name}\nEmail: ${lead.email}\nPhone: ${lead.phone ?? "—"}\nCountry: ${lead.country_text ?? "—"}\nMessage: ${lead.notes ?? "—"}\n\nView it in Prospect Ledger.`,
+        text: `New inbound inquiry received.\n\nName: ${lead.full_name}\nEmail: ${lead.email}\nPhone: ${lead.phone ?? "—"}\nCountry: ${lead.country_text ?? "—"}\nMessage: ${lead.notes ?? "—"}\n${lead.ad_tracking ? `\nCampaign: ${lead.ad_tracking.campaign_name ?? "—"}\nAd set: ${lead.ad_tracking.adset_name ?? "—"}\nAd: ${lead.ad_tracking.ad_name ?? "—"}\nPlacement: ${lead.ad_tracking.placement ?? "—"}\n` : ""}\nView it in Prospect Ledger.`,
       }),
     });
   } catch {
@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { full_name, email, phone, country_text, interest_note, source } = await req.json();
+    const { full_name, email, phone, country_text, interest_note, source, ad_tracking } = await req.json();
 
     if (!full_name || typeof full_name !== "string" || !full_name.trim()) {
       return new Response(JSON.stringify({ error: "Name is required" }), {
@@ -156,6 +156,7 @@ Deno.serve(async (req) => {
         jurisdiction_id: jurisdictionId,
         source: source || "inbound_ad",
         consent_basis: "explicit_inquiry",
+        ad_tracking: ad_tracking || null,
         stage: "new",
         net_worth_signal: "unknown", // deliberately not inferred from self-reported claims alone
         notes: interest_note ? `Inbound inquiry: ${interest_note}` : "Inbound inquiry via landing page",

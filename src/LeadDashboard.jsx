@@ -1039,6 +1039,20 @@ export default function LeadDashboard({
                     {selected.currentInvestmentProducts || "—"}
                   </dd>
                 </div>
+                {selected.adTracking && (
+                  <div className="col-span-2" style={{ background: TOKENS.surfaceRaised, borderRadius: 6, padding: 10, marginTop: 4 }}>
+                    <dt style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: TOKENS.textFaint, marginBottom: 6 }}>
+                      Ad attribution
+                    </dt>
+                    <dd style={{ fontSize: 12, color: TOKENS.textMuted, lineHeight: 1.7 }}>
+                      {selected.adTracking.campaign_name && <div>Campaign: {selected.adTracking.campaign_name}</div>}
+                      {selected.adTracking.adset_name && <div>Ad set: {selected.adTracking.adset_name}</div>}
+                      {selected.adTracking.ad_name && <div>Ad: {selected.adTracking.ad_name}</div>}
+                      {selected.adTracking.placement && <div>Placement: {selected.adTracking.placement}</div>}
+                      {selected.adTracking.utm_source && <div>Source: {selected.adTracking.utm_source}</div>}
+                    </dd>
+                  </div>
+                )}
               </dl>
             ) : (
               <div className="mb-6">

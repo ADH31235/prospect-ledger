@@ -37,6 +37,7 @@ function mapRow(row: any) {
     optedOutAt: row.opted_out_at ?? null,
     lastContact: row.last_contact_at ?? null, // add this column, or derive from outreach_events
     createdAt: row.created_at ?? null,
+    adTracking: row.ad_tracking ?? null,
     notes: row.notes ?? "",
   };
 }
