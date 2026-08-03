@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Plus, Users, ExternalLink, Copy, Pencil } from "lucide-react";
+import { Plus, Users, ExternalLink, Copy, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
 const TOKENS = {
@@ -94,6 +94,21 @@ export default function WebinarsAdmin() {
     await load();
   }
 
+  async function deleteWebinar(id, title) {
+    const count = registrationCounts[id] ?? 0;
+    const warning = count > 0
+      ? `Delete "${title}"? This also removes its ${count} registration${count === 1 ? "" : "s"} — the leads themselves stay, just the record of them registering for this event. This cannot be undone.`
+      : `Delete "${title}"? This cannot be undone.`;
+    if (!window.confirm(warning)) return;
+    try {
+      const { error } = await supabase.from("webinars").delete().eq("id", id);
+      if (error) throw error;
+      await load();
+    } catch (err) {
+      alert(`Couldn't delete: ${err?.message ?? err}`);
+    }
+  }
+
   function signupLink(id) {
     return `${window.location.origin}/webinar?id=${id}`;
   }
@@ -184,6 +199,9 @@ export default function WebinarsAdmin() {
                       </div>
                       <button onClick={() => startEdit(w)} title="Edit event" style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.textMuted, display: "flex" }}>
                         <Pencil size={13} />
+                      </button>
+                      <button onClick={() => deleteWebinar(w.id, w.title)} title="Delete event" style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.riskBlocked, display: "flex" }}>
+                        <Trash2 size={13} />
                       </button>
                       <select
                         value={w.status}
