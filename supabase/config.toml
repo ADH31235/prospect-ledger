@@ -1,0 +1,9 @@
+# Marks which Edge Functions are public (callable without a
+# logged-in Supabase session). Everything else defaults to
+# requiring auth — including send-newsletter, deliberately.
+
+[functions.subscribe]
+verify_jwt = false
+
+[functions.newsletter-action]
+verify_jwt = false
