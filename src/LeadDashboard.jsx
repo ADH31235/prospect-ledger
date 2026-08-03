@@ -756,6 +756,8 @@ export default function LeadDashboard({
                   await onBulkAssignJurisdiction(Array.from(selectedForBulk), bulkJurisdictionId);
                   setSelectedForBulk(new Set());
                   setBulkJurisdictionId("");
+                } catch (err) {
+                  alert(`Couldn't apply: ${err?.message ?? err}`);
                 } finally {
                   setBulkWorking(false);
                 }
@@ -777,6 +779,8 @@ export default function LeadDashboard({
                 try {
                   await onBulkDeleteLeads(Array.from(selectedForBulk));
                   setSelectedForBulk(new Set());
+                } catch (err) {
+                  alert(`Couldn't delete: ${err?.message ?? err}`);
                 } finally {
                   setBulkWorking(false);
                 }
@@ -937,11 +941,14 @@ export default function LeadDashboard({
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    if (window.confirm(`Delete ${selected.name}? This cannot be undone.`)) {
-                      if (onDeleteLead) onDeleteLead(selected.id);
+                  onClick={async () => {
+                    if (!window.confirm(`Delete ${selected.name}? This cannot be undone.`)) return;
+                    try {
+                      if (onDeleteLead) await onDeleteLead(selected.id);
                       else setLocalLeads((prev) => prev.filter((l) => l.id !== selected.id));
                       setSelectedId(null);
+                    } catch (err) {
+                      alert(`Couldn't delete: ${err?.message ?? err}`);
                     }
                   }}
                   title="Delete prospect"

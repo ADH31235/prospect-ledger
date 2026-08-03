@@ -219,8 +219,8 @@ export function useLeads() {
     setLeads((prev) => prev.filter((l) => l.id !== id));
     const { error } = await supabase.from("leads").delete().eq("id", id);
     if (error) {
-      console.error("Failed to delete lead", error);
-      fetchLeads(); // restore if the delete actually failed
+      fetchLeads(); // restore the optimistically-removed row since the delete actually failed
+      throw error;
     }
   }, [fetchLeads]);
 
