@@ -1,4 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Clock } from "lucide-react";
+import { useStageHistory } from "./useStageHistory";
 
 const TOKENS = {
   bg: "#0E141C", surface: "#161E29", surfaceRaised: "#1C2733",
@@ -46,6 +48,75 @@ function weeklyBuckets(leads, weeks = 12) {
 }
 
 export default function ReportsView({ leads, jurisdictions }) {
+  const { getRecentChanges, getAllHistory } = useStageHistory();
+  const [recentChanges, setRecentChanges] = useState([]);
+  const [allHistory, setAllHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      setHistoryLoading(true);
+      try {
+        const [recent, all] = await Promise.all([getRecentChanges(12), getAllHistory()]);
+        setRecentChanges(recent);
+        setAllHistory(all);
+      } finally {
+        setHistoryLoading(false);
+      }
+    })();
+  }, [getRecentChanges, getAllHistory]);
+
+  // "Ever reached" counts — how many distinct leads have ever
+  // touched each stage, even if they later moved on or were
+  // disqualified. This is the actual historical funnel, distinct
+  // from the current-snapshot funnel below (which only counts
+  // where a lead sits right now).
+  const everReachedCounts = useMemo(() => {
+    const reached = {};
+    for (const stage of STAGE_ORDER) reached[stage] = new Set();
+    for (const row of allHistory) {
+      if (reached[row.to_stage]) reached[row.to_stage].add(row.lead_id);
+    }
+    const counts = {};
+    for (const stage of STAGE_ORDER) counts[stage] = reached[stage].size;
+    return counts;
+  }, [allHistory]);
+
+  // Average days from a lead's first "new" entry to its first
+  // "qualified" or "client" entry, across leads that have reached
+  // one of those stages.
+  const avgDaysToQualify = useMemo(() => {
+    const firstNewByLead = {};
+    const firstQualifiedByLead = {};
+    for (const row of allHistory) {
+      if (row.to_stage === "new" && !firstNewByLead[row.lead_id]) {
+        firstNewByLead[row.lead_id] = new Date(row.changed_at);
+      }
+      if ((row.to_stage === "qualified" || row.to_stage === "client") && !firstQualifiedByLead[row.lead_id]) {
+        firstQualifiedByLead[row.lead_id] = new Date(row.changed_at);
+      }
+    }
+    const diffs = [];
+    for (const leadId of Object.keys(firstQualifiedByLead)) {
+      if (firstNewByLead[leadId]) {
+        const days = (firstQualifiedByLead[leadId] - firstNewByLead[leadId]) / (1000 * 60 * 60 * 24);
+        if (days >= 0) diffs.push(days);
+      }
+    }
+    if (!diffs.length) return null;
+    return Math.round(diffs.reduce((a, b) => a + b, 0) / diffs.length);
+  }, [allHistory]);
+
+  function timeAgo(dateStr) {
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  }
+
   const stats = useMemo(() => {
     const stageCounts = {};
     for (const stage of [...STAGE_ORDER, "disqualified", "do_not_contact"]) stageCounts[stage] = 0;
@@ -96,16 +167,17 @@ export default function ReportsView({ leads, jurisdictions }) {
             Reports
           </h1>
           <p style={{ color: TOKENS.textMuted, fontSize: 13, marginTop: 2 }}>
-            Where your book stands right now — this is a snapshot, not a historical trend (stage-change dates aren't tracked yet).
+            Current snapshot, historical funnel, and recent stage-change activity — tracked automatically from here on.
           </p>
         </div>
 
-        <div className="grid grid-cols-4 gap-px mb-8" style={{ background: TOKENS.border }}>
+        <div className="grid grid-cols-5 gap-px mb-8" style={{ background: TOKENS.border }}>
           {[
             { label: "Total prospects", value: leads.length },
             { label: "Qualified + Client", value: (stats.stageCounts.qualified ?? 0) + (stats.stageCounts.client ?? 0) },
             { label: "Conversion rate", value: `${stats.conversionRate}%` },
             { label: "Pipeline value (est.)", value: formatMoney(stats.totalPipelineValue) },
+            { label: "Avg days to qualify", value: avgDaysToQualify != null ? avgDaysToQualify : "—" },
           ].map((s) => (
             <div key={s.label} style={{ background: TOKENS.surface, padding: "16px 18px" }}>
               <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
@@ -143,6 +215,37 @@ export default function ReportsView({ leads, jurisdictions }) {
             <div style={{ fontSize: 11.5, color: TOKENS.textFaint, marginTop: 6, paddingTop: 12, borderTop: `1px solid ${TOKENS.borderFaint}` }}>
               {stats.stageCounts.disqualified ?? 0} disqualified · {stats.stageCounts.do_not_contact ?? 0} blocked (do not contact) — excluded from the funnel above
             </div>
+          )}
+        </div>
+
+        <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+          Historical funnel — ever reached this stage
+        </div>
+        <p style={{ fontSize: 11.5, color: TOKENS.textFaint, marginBottom: 12 }}>
+          Unlike the snapshot above, this counts anyone who ever touched a stage — even if they later moved on or were disqualified. Builds up as stage changes happen from here on.
+        </p>
+        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "18px 20px", marginBottom: 32 }}>
+          {historyLoading ? (
+            <div style={{ fontSize: 12.5, color: TOKENS.textFaint }}>Loading…</div>
+          ) : (
+            STAGE_ORDER.map((stage) => {
+              const count = everReachedCounts[stage] ?? 0;
+              const maxEver = Math.max(1, ...STAGE_ORDER.map((s) => everReachedCounts[s] ?? 0));
+              return (
+                <div key={stage} className="flex items-center gap-3" style={{ marginBottom: 14 }}>
+                  <div style={{ width: 90, fontSize: 12.5, color: TOKENS.textMuted, flexShrink: 0 }}>{STAGE_LABELS[stage]}</div>
+                  <div style={{ flex: 1, background: TOKENS.surfaceRaised, borderRadius: 4, height: 22, position: "relative", overflow: "hidden" }}>
+                    <div style={{
+                      width: `${(count / maxEver) * 100}%`, height: "100%",
+                      background: "#4C8FDB", borderRadius: 4, transition: "width 0.3s",
+                    }} />
+                  </div>
+                  <div style={{ width: 40, textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, flexShrink: 0 }}>
+                    {count}
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
 
@@ -215,6 +318,42 @@ export default function ReportsView({ leads, jurisdictions }) {
               )}
             </div>
           </div>
+        </div>
+
+        <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+          Recent activity
+        </div>
+        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden" }}>
+          {historyLoading ? (
+            <div style={{ padding: 20, fontSize: 12.5, color: TOKENS.textFaint }}>Loading…</div>
+          ) : recentChanges.length === 0 ? (
+            <div style={{ padding: 20, fontSize: 12.5, color: TOKENS.textFaint, textAlign: "center" }}>
+              No stage changes recorded yet.
+            </div>
+          ) : (
+            recentChanges.map((c, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between px-4 py-2.5"
+                style={{
+                  background: i % 2 === 0 ? TOKENS.surface : "transparent",
+                  borderBottom: i < recentChanges.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <span style={{ fontSize: 13 }}>{c.leads?.full_name ?? "Unknown"}</span>
+                  <span style={{ fontSize: 12, color: TOKENS.textFaint }}>
+                    {c.from_stage ? `${STAGE_LABELS[c.from_stage] ?? c.from_stage} → ` : "entered as "}
+                    {STAGE_LABELS[c.to_stage] ?? c.to_stage}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1" style={{ fontSize: 11.5, color: TOKENS.textFaint }}>
+                  <Clock size={11} />
+                  {timeAgo(c.changed_at)}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
