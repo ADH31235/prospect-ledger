@@ -187,7 +187,7 @@ export default function ComplianceReview() {
                 display: "flex", alignItems: "center", gap: 6,
                 background: "none", border: "none", cursor: "pointer",
                 padding: "9px 14px", fontSize: 13,
-                color: tab === key ? TOKENS.ivory : TOKENS.ivoryMuted,
+                color: TOKENS.ivory,
                 borderBottom: tab === key ? `2px solid ${TOKENS.riskReview}` : "2px solid transparent",
                 marginBottom: -1,
               }}
