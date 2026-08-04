@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Routes, Route } from "react-router-dom";
-import { BookOpen, ShieldCheck, Mail, TrendingUp, Send, BarChart3, Video, FileStack } from "lucide-react";
+import { BookOpen, ShieldCheck, Mail, TrendingUp, Send, BarChart3, Video, FileStack, CreditCard } from "lucide-react";
 import LeadDashboard from "./LeadDashboard";
 import ComplianceReview from "./ComplianceReview";
 import NewsletterAdmin from "./NewsletterAdmin";
@@ -11,6 +11,7 @@ import WebinarSignupPage from "./WebinarSignupPage";
 import WebinarsAdmin from "./WebinarsAdmin";
 import ContentLibrary from "./ContentLibrary";
 import ProvisionGate from "./ProvisionGate";
+import BillingTab from "./BillingTab";
 import SignupPage from "./SignupPage";
 import SubscribePage from "./SubscribePage";
 import InquirePage from "./InquirePage";
@@ -25,7 +26,7 @@ import { LogOut } from "lucide-react";
 
 
 function AuthenticatedApp() {
-  const [view, setView] = useState<"ledger" | "compliance" | "newsletter" | "deals" | "sequences" | "reports" | "webinars" | "content">("ledger");
+  const [view, setView] = useState<"ledger" | "compliance" | "newsletter" | "deals" | "sequences" | "reports" | "webinars" | "content" | "billing">("ledger");
   const {
     leads, jurisdictions, loading, error,
     updateStage, updateNotes, addLead, deleteLead, addJurisdiction, bulkAddLeads, updateLeadDetails,
@@ -42,6 +43,7 @@ function AuthenticatedApp() {
     { key: "reports", label: "Reports", icon: BarChart3 },
     { key: "webinars", label: "Webinars", icon: Video },
     { key: "content", label: "Content", icon: FileStack },
+    { key: "billing", label: "Billing", icon: CreditCard },
   ] as const;
 
   return (
@@ -118,6 +120,7 @@ function AuthenticatedApp() {
         {view === "reports" && <ReportsView leads={leads} jurisdictions={jurisdictions} />}
         {view === "webinars" && <WebinarsAdmin />}
         {view === "content" && <ContentLibrary />}
+        {view === "billing" && <BillingTab />}
       </div>
     </div>
   );
