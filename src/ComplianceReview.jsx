@@ -166,15 +166,22 @@ export default function ComplianceReview() {
               {reviewRequiredCount} jurisdiction{reviewRequiredCount === 1 ? "" : "s"} awaiting decision · {pendingTemplates.length} template{pendingTemplates.length === 1 ? "" : "s"} unapproved · {provenanceLeads.length} provenance flag{provenanceLeads.length === 1 ? "" : "s"}
             </p>
           </div>
-          <input
-            value={reviewerName}
-            onChange={(e) => setReviewerName(e.target.value)}
-            placeholder="Your name (required to act)"
-            style={{
-              background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
-              height: 32, padding: "0 10px", fontSize: 12.5, color: TOKENS.textPrimary, width: 200,
-            }}
-          />
+          <div>
+            <label style={{ fontSize: 11, color: TOKENS.ivoryMuted, display: "block", marginBottom: 4 }}>
+              Reviewer name — required before approving
+            </label>
+            <input
+              value={reviewerName}
+              onChange={(e) => setReviewerName(e.target.value)}
+              placeholder="Type your name here"
+              style={{
+                background: TOKENS.surface,
+                border: `1.5px solid ${reviewerName.trim() ? TOKENS.riskLow : TOKENS.gold}`,
+                borderRadius: 6,
+                height: 34, padding: "0 10px", fontSize: 13, color: TOKENS.textPrimary, width: 220,
+              }}
+            />
+          </div>
         </div>
 
         {/* Tabs */}

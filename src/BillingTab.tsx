@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { CreditCard, CheckCircle2, RefreshCw } from "lucide-react";
+import { CreditCard, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+import { supabase } from "./supabaseClient";
 import { useTenant } from "./useTenant";
 import { TOKENS } from "./theme";
 
@@ -41,6 +42,27 @@ export default function BillingTab() {
   const { tenant, loading, refetch } = useTenant();
   const [checkoutOpening, setCheckoutOpening] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
+  const [canceling, setCanceling] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+  const [cancelRequested, setCancelRequested] = useState(false);
+
+  async function handleCancel() {
+    if (!window.confirm("Cancel your subscription? You'll keep access until the end of your current billing period, then it won't renew.")) {
+      return;
+    }
+    setCanceling(true);
+    setCancelError("");
+    try {
+      const { error } = await supabase.functions.invoke("cancel-subscription");
+      if (error) throw error;
+      setCancelRequested(true);
+      await refetch();
+    } catch (err) {
+      setCancelError(err?.message ?? "Couldn't cancel — please try again.");
+    } finally {
+      setCanceling(false);
+    }
+  }
 
   async function handleSubscribe() {
     if (!PADDLE_CLIENT_TOKEN) {
@@ -110,6 +132,29 @@ export default function BillingTab() {
               <div style={{ fontSize: 13, color: TOKENS.textMuted, marginBottom: 16 }}>
                 {status === "canceled" ? "Access until" : "Renews"}{" "}
                 {new Date(tenant.current_period_end).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+              </div>
+            )}
+
+            {isActive && !cancelRequested && (
+              <>
+                <button
+                  onClick={handleCancel}
+                  disabled={canceling}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    background: "none", color: TOKENS.riskBlocked, border: `1px solid ${TOKENS.riskBlocked}55`, borderRadius: 6,
+                    padding: "9px 16px", fontSize: 13, cursor: "pointer",
+                    opacity: canceling ? 0.6 : 1,
+                  }}
+                >
+                  <XCircle size={14} /> {canceling ? "Canceling…" : "Cancel subscription"}
+                </button>
+                {cancelError && <div style={{ color: TOKENS.riskBlocked, fontSize: 12.5, marginTop: 10 }}>{cancelError}</div>}
+              </>
+            )}
+            {cancelRequested && (
+              <div style={{ fontSize: 13, color: TOKENS.textMuted }}>
+                Cancellation scheduled — you'll keep access until your current period ends.
               </div>
             )}
 

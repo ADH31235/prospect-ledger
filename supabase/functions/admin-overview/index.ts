@@ -114,6 +114,7 @@ Deno.serve(async (req) => {
         lead_count: leadCountByTenant[t.id] ?? 0,
         user_count: userCountByTenant[t.id] ?? 0,
         plan_name: priceInfo?.name ?? t.plan,
+        plan_currency: priceInfo?.currency ?? null,
       };
     });
 

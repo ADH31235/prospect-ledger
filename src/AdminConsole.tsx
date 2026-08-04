@@ -17,6 +17,8 @@ export default function AdminConsole() {
   const [kpis, setKpis] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [displayCurrency, setDisplayCurrency] = useState(null);
+  const [manualRates, setManualRates] = useState({});
 
   useEffect(() => {
     load();
@@ -30,6 +32,16 @@ export default function AdminConsole() {
       if (error) throw error;
       setTenants(data?.tenants ?? []);
       setKpis(data?.kpis ?? null);
+      if (data?.kpis?.mrr?.length) {
+        setDisplayCurrency((prev) => prev ?? data.kpis.mrr[0].currency);
+        setManualRates((prev) => {
+          const next = { ...prev };
+          for (const m of data.kpis.mrr) {
+            if (!(m.currency in next)) next[m.currency] = 1;
+          }
+          return next;
+        });
+      }
     } catch (err) {
       setError(err?.message ?? "Couldn't load — you may not have access to this page.");
     } finally {
@@ -107,6 +119,44 @@ export default function AdminConsole() {
               </div>
             </div>
 
+            {kpis?.mrr?.length > 1 && (
+              <div style={{ background: TOKENS.surface, borderRadius: 10, padding: 16, marginBottom: 24 }}>
+                <div style={{ fontSize: 12, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+                  Combined total — manual exchange rates
+                </div>
+                <p style={{ fontSize: 12, color: TOKENS.textMuted, marginBottom: 12 }}>
+                  You're billing in more than one currency. There's no live exchange-rate feed connected, so enter your own rates below (relative to your chosen display currency) to see a combined estimate.
+                </p>
+                <div className="flex items-center gap-3 flex-wrap mb-3">
+                  <label style={{ fontSize: 12.5, color: TOKENS.textMuted }}>Show total in</label>
+                  <select
+                    value={displayCurrency ?? ""}
+                    onChange={(e) => setDisplayCurrency(e.target.value)}
+                    style={{ background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
+                  >
+                    {kpis.mrr.map((m) => <option key={m.currency} value={m.currency}>{m.currency}</option>)}
+                  </select>
+                </div>
+                {kpis.mrr.filter((m) => m.currency !== displayCurrency).map((m) => (
+                  <div key={m.currency} className="flex items-center gap-2 mb-2">
+                    <span style={{ fontSize: 12.5, color: TOKENS.textMuted, width: 100 }}>1 {m.currency} =</span>
+                    <input
+                      type="number" step="0.0001" value={manualRates[m.currency] ?? 1}
+                      onChange={(e) => setManualRates((prev) => ({ ...prev, [m.currency]: parseFloat(e.target.value) || 0 }))}
+                      style={{ width: 90, background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
+                    />
+                    <span style={{ fontSize: 12.5, color: TOKENS.textMuted }}>{displayCurrency}</span>
+                  </div>
+                ))}
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18, marginTop: 8 }}>
+                  {displayCurrency} {kpis.mrr.reduce((sum, m) => {
+                    const rate = m.currency === displayCurrency ? 1 : (manualRates[m.currency] ?? 1);
+                    return sum + m.amount * rate;
+                  }, 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </div>
+              </div>
+            )}
+
             <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
               <div
                 className="grid px-4 py-2.5"
@@ -146,7 +196,10 @@ export default function AdminConsole() {
                           {meta.label}
                         </span>
                       </div>
-                      <div style={{ fontSize: 12.5, color: TOKENS.textMuted }}>{t.plan_name ?? t.plan ?? "—"}</div>
+                      <div style={{ fontSize: 12.5, color: TOKENS.textMuted }}>
+                        {t.plan_name ?? t.plan ?? "—"}
+                        {t.plan_currency && <span style={{ color: TOKENS.textFaint }}> · {t.plan_currency}</span>}
+                      </div>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>{t.user_count}</div>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>{t.lead_count}</div>
                       <div style={{ fontSize: 12.5, color: TOKENS.textMuted }}>
