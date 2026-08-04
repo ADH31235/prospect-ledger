@@ -80,10 +80,10 @@ export default function DealSignals({ jurisdictions, onAddLead }: { jurisdiction
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="flex items-baseline justify-between border-b pb-5 mb-6" style={{ borderColor: TOKENS.border }}>
           <div>
-            <h1 style={{ fontFamily: "'Newsreader', serif", fontStyle: "italic", fontWeight: 500, fontSize: 28 }}>
+            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.ivory }}>
               Deal Signals
             </h1>
-            <p style={{ color: TOKENS.textMuted, fontSize: 13, marginTop: 2 }}>
+            <p style={{ color: TOKENS.ivoryMuted, fontSize: 13, marginTop: 2 }}>
               Companies with a spotted liquidity event — log first, identify the person, convert when ready.
             </p>
           </div>

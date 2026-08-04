@@ -434,10 +434,10 @@ export default function LeadDashboard({
         {/* Masthead */}
         <div className="flex items-baseline justify-between border-b pb-5 mb-6" style={{ borderColor: TOKENS.border }}>
           <div>
-            <h1 style={{ fontFamily: "'Newsreader', serif", fontStyle: "italic", fontWeight: 500, fontSize: 30, letterSpacing: "-0.01em" }}>
+            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 30, letterSpacing: "-0.01em", color: TOKENS.ivory }}>
               Prospect Ledger
             </h1>
-            <p style={{ color: TOKENS.textMuted, fontSize: 13, marginTop: 2 }}>
+            <p style={{ color: TOKENS.ivoryMuted, fontSize: 13, marginTop: 2 }}>
               Personal book
             </p>
           </div>
@@ -969,7 +969,7 @@ export default function LeadDashboard({
               <div className="flex items-center gap-3">
                 <Seal risk={getJurisdiction(jurisdictions, selected.jurisdiction).risk} size={36} />
                 <div>
-                  <div style={{ fontFamily: "'Newsreader', serif", fontSize: 19 }}>{selected.name}</div>
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 19 }}>{selected.name}</div>
                   <div style={{ fontSize: 12.5, color: TOKENS.textFaint }}>{selected.title} · {selected.company}</div>
                 </div>
               </div>
@@ -1541,7 +1541,7 @@ function AddLeadModal({ jurisdictions, onAddJurisdiction, onClose, onSubmit }) {
         }}
       >
         <div className="flex items-center justify-between mb-5">
-          <div style={{ fontFamily: "'Newsreader', serif", fontSize: 20 }}>Add prospect</div>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 20 }}>Add prospect</div>
           <button type="button" onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer" }}>
             <X size={18} color={TOKENS.textFaint} />
           </button>
@@ -1818,7 +1818,7 @@ function ImportModal({ jurisdictions, onClose, onImport }) {
         }}
       >
         <div className="flex items-center justify-between mb-5">
-          <div style={{ fontFamily: "'Newsreader', serif", fontSize: 20 }}>Import prospects</div>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 20 }}>Import prospects</div>
           <button type="button" onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer" }}>
             <X size={18} color={TOKENS.textFaint} />
           </button>

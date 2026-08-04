@@ -138,10 +138,10 @@ export default function ContentLibrary() {
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="flex items-baseline justify-between border-b pb-5 mb-6" style={{ borderColor: TOKENS.border }}>
           <div>
-            <h1 style={{ fontFamily: "'Newsreader', serif", fontStyle: "italic", fontWeight: 500, fontSize: 28 }}>
+            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.ivory }}>
               Content Library
             </h1>
-            <p style={{ color: TOKENS.textMuted, fontSize: 13, marginTop: 2 }}>
+            <p style={{ color: TOKENS.ivoryMuted, fontSize: 13, marginTop: 2 }}>
               Log a post, get a tracking link, see how many leads it actually produced.
             </p>
           </div>

@@ -1,29 +1,34 @@
-// Trivara brand palette — forest green, sage, ivory — replacing
-// the old gold accent. Key names kept identical to what every
-// screen already used (bg, surface, gold, etc.) specifically so
-// each file only needs its local TOKENS block swapped for this
-// import, not every individual TOKENS.xxx reference rewritten.
+// Trivara brand palette, v2 — forest green page background, white
+// cards, sage accent. Confirmed direction: option A (full light/green)
+// from the in-chat mockup comparison.
+//
+// IMPORTANT — this flips what textPrimary/textMuted/textFaint mean:
+// almost all actual content (stat values, table rows, form fields)
+// sits on WHITE cards now, not on the raw green background, so
+// these are tuned for dark-text-on-white. The few things that sit
+// directly on the green page background (page titles, subtitles)
+// use TOKENS.ivory instead — see the pattern in each file's header.
 export const TOKENS = {
-  bg: "#0E141C",
-  surface: "#161E29",
-  surfaceRaised: "#1C2733",
-  border: "#2A3644",
-  borderFaint: "#212B37",
-  textPrimary: "#E7ECF2",
-  textMuted: "#8B98AC",
-  textFaint: "#5C6879",
-  // "gold" name kept for compatibility with existing call sites —
-  // value is now Trivara's sage green, the primary brand accent.
+  bg: "#1B3B2F",
+  surface: "#FFFFFF",
+  surfaceRaised: "#FFFFFF",
+  border: "rgba(27, 59, 47, 0.14)",
+  borderFaint: "rgba(27, 59, 47, 0.08)",
+  textPrimary: "#1B3B2F",
+  textMuted: "#4C6357",
+  textFaint: "#7A8F84",
   gold: "#5B9179",
-  // Trivara's deeper forest green — used where a darker accent
-  // reads better (hover states, filled badges).
   accentDeep: "#1B3B2F",
-  // Trivara's ivory — sparing use, mainly on light surfaces.
+  // Text color for content sitting directly on the green page
+  // background (titles, subtitles) — NOT for content inside white
+  // cards, which uses textPrimary/textMuted/textFaint above.
   ivory: "#F5F0E1",
+  ivoryMuted: "#A9C9B8",
   riskLow: "#4C9E76",
   riskReview: "#D9A441",
   riskBlocked: "#BD5A47",
 };
 
-export const NAV_BG = "#0A0F16";
-export const BORDER = "#2A3644";
+export const NAV_BG = "#FFFFFF";
+export const BORDER = "rgba(27, 59, 47, 0.14)";
+

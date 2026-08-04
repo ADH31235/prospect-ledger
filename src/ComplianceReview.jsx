@@ -159,10 +159,10 @@ export default function ComplianceReview() {
 
         <div className="flex items-baseline justify-between border-b pb-5 mb-6" style={{ borderColor: TOKENS.border }}>
           <div>
-            <h1 style={{ fontFamily: "'Newsreader', serif", fontStyle: "italic", fontWeight: 500, fontSize: 28 }}>
+            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.ivory }}>
               Compliance Review
             </h1>
-            <p style={{ color: TOKENS.textMuted, fontSize: 13, marginTop: 2 }}>
+            <p style={{ color: TOKENS.ivoryMuted, fontSize: 13, marginTop: 2 }}>
               {reviewRequiredCount} jurisdiction{reviewRequiredCount === 1 ? "" : "s"} awaiting decision · {pendingTemplates.length} template{pendingTemplates.length === 1 ? "" : "s"} unapproved · {provenanceLeads.length} provenance flag{provenanceLeads.length === 1 ? "" : "s"}
             </p>
           </div>
@@ -355,7 +355,7 @@ export default function ComplianceReview() {
             onClick={(e) => e.stopPropagation()}
             style={{ width: 380, maxWidth: "90vw", height: "100%", background: TOKENS.surface, borderLeft: `1px solid ${TOKENS.border}`, padding: 22 }}
           >
-            <div style={{ fontFamily: "'Newsreader', serif", fontSize: 19, marginBottom: 4 }}>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 19, marginBottom: 4 }}>
               {selectedJurisdiction.country}
             </div>
             <div style={{ fontSize: 12.5, color: TOKENS.textFaint, marginBottom: 18 }}>
@@ -413,7 +413,7 @@ export default function ComplianceReview() {
             onClick={(e) => e.stopPropagation()}
             style={{ width: 380, maxWidth: "90vw", height: "100%", background: TOKENS.surface, borderLeft: `1px solid ${TOKENS.border}`, padding: 22 }}
           >
-            <div style={{ fontFamily: "'Newsreader', serif", fontSize: 19, marginBottom: 4 }}>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 19, marginBottom: 4 }}>
               {selectedProvenanceLead.full_name}
             </div>
             <div style={{ fontSize: 12.5, color: TOKENS.textFaint, marginBottom: 18 }}>
