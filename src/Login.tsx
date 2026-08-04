@@ -58,6 +58,9 @@ export default function Login() {
         }}>
           {busy ? "Signing in…" : "Sign in"}
         </button>
+        <div style={{ fontSize: 12.5, color: "#8B98AC", marginTop: 14, textAlign: "center" }}>
+          New here? <a href="/signup" style={{ color: "#C9A227" }}>Create an account</a>
+        </div>
       </form>
     </div>
   );

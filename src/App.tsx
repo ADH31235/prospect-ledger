@@ -10,6 +10,8 @@ import ReportsView from "./ReportsView";
 import WebinarSignupPage from "./WebinarSignupPage";
 import WebinarsAdmin from "./WebinarsAdmin";
 import ContentLibrary from "./ContentLibrary";
+import ProvisionGate from "./ProvisionGate";
+import SignupPage from "./SignupPage";
 import SubscribePage from "./SubscribePage";
 import InquirePage from "./InquirePage";
 import NewsletterActionPage from "./NewsletterActionPage";
@@ -111,7 +113,11 @@ function ProtectedApp() {
   const { session, loading } = useSession();
   if (loading) return <div style={{ height: "100%", background: "#0E141C" }} />;
   if (!session) return <Login />;
-  return <AuthenticatedApp />;
+  return (
+    <ProvisionGate session={session}>
+      <AuthenticatedApp />
+    </ProvisionGate>
+  );
 }
 
 export default function App() {
@@ -121,6 +127,7 @@ export default function App() {
       <Route path="/subscribe" element={<SubscribePage />} />
       <Route path="/inquire" element={<InquirePage />} />
       <Route path="/webinar" element={<WebinarSignupPage />} />
+      <Route path="/signup" element={<SignupPage />} />
       <Route path="/newsletter-action" element={<NewsletterActionPage />} />
       {/* Everything else requires login */}
       <Route path="*" element={<ProtectedApp />} />
