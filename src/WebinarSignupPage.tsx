@@ -20,18 +20,18 @@ export default function WebinarSignupPage() {
       setLoadState("not_found");
       return;
     }
-    supabase
-      .from("webinars")
-      .select("*")
-      .eq("id", webinarId)
-      .single()
-      .then(({ data, error }) => {
-        if (error || !data) setLoadState("not_found");
+    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-webinar?id=${webinarId}`, {
+      headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+    })
+      .then((res) => res.json())
+      .then(({ webinar, error }) => {
+        if (error || !webinar) setLoadState("not_found");
         else {
-          setWebinar(data);
+          setWebinar(webinar);
           setLoadState("ready");
         }
-      });
+      })
+      .catch(() => setLoadState("not_found"));
   }, [webinarId]);
 
   function set(field, value) {

@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { full_name, email, phone, country_text, interest_note, source, ad_tracking } = await req.json();
+    const { full_name, email, phone, country_text, interest_note, source, ad_tracking, tenant_slug } = await req.json();
 
     if (!full_name || typeof full_name !== "string" || !full_name.trim()) {
       return new Response(JSON.stringify({ error: "Name is required" }), {
@@ -137,11 +137,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Resolve which company this inquiry belongs to. Falls back to
+    // the original default tenant so any links already shared
+    // without a ?t= param (e.g. the LinkedIn posts drafted earlier)
+    // keep working exactly as before.
+    let tenantId = "00000000-0000-0000-0000-000000000001";
+    if (tenant_slug) {
+      const { data: t } = await supabase.from("tenants").select("id").eq("slug", tenant_slug).maybeSingle();
+      if (t) tenantId = t.id;
+    }
+
     let jurisdictionId: string | null = null;
     if (country_text) {
       const { data: j } = await supabase
         .from("jurisdictions")
         .select("id")
+        .eq("tenant_id", tenantId)
         .ilike("country", country_text.trim())
         .maybeSingle();
       jurisdictionId = j?.id ?? null;
@@ -160,7 +171,7 @@ Deno.serve(async (req) => {
         stage: "new",
         net_worth_signal: "unknown", // deliberately not inferred from self-reported claims alone
         notes: interest_note ? `Inbound inquiry: ${interest_note}` : "Inbound inquiry via landing page",
-        tenant_id: "00000000-0000-0000-0000-000000000001", // TODO Phase 5: resolve from which tenant this page belongs to
+        tenant_id: tenantId,
       })
       .select()
       .single();

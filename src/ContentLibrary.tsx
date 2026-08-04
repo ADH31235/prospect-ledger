@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Plus, Copy, ExternalLink, Users, Pencil } from "lucide-react";
 import { supabase } from "./supabaseClient";
+import { useTenant } from "./useTenant";
 import { TOKENS } from "./theme";
 
 
@@ -25,6 +26,7 @@ function slugify(title) {
 }
 
 export default function ContentLibrary() {
+  const { tenant } = useTenant();
   const [pieces, setPieces] = useState([]);
   const [leadCounts, setLeadCounts] = useState({});
   const [webinars, setWebinars] = useState([]);
@@ -118,6 +120,13 @@ export default function ContentLibrary() {
     let url = `${window.location.origin}${dest.path}`;
     const params = new URLSearchParams({ utm_source: utmSource, utm_medium: "organic", utm_content: slug });
     if (destination === "webinar" && webinarId) params.set("id", webinarId);
+    // Webinar links don't need this — the webinar id alone already
+    // identifies which company it belongs to. Inquire/subscribe
+    // links do, since there's nothing else in the URL to say whose
+    // form this is.
+    if ((destination === "inquire" || destination === "subscribe") && tenant?.slug) {
+      params.set("t", tenant.slug);
+    }
     return `${url}?${params.toString()}`;
   }
 

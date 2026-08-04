@@ -48,12 +48,18 @@ export default function InquirePage() {
         form.interest_note ? `Message: ${form.interest_note}` : "",
       ].filter(Boolean).join(" — ");
 
+      // ?t=<tenant-slug> identifies which company this page belongs
+      // to — omitted, it falls back to the original default tenant,
+      // so any links already shared without it keep working.
+      const tenantSlug = new URLSearchParams(window.location.search).get("t");
+
       const { error } = await supabase.functions.invoke("capture-inquiry", {
         body: {
           ...form,
           interest_note: combinedNote,
           source: adTracking.utm_source ? `inbound_ad:${adTracking.utm_source}` : "inbound_ad",
           ad_tracking: Object.keys(adTracking).length ? adTracking : null,
+          tenant_slug: tenantSlug,
         },
       });
       if (error) throw error;

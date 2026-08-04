@@ -122,6 +122,7 @@ Deno.serve(async (req) => {
       const { data: j } = await supabase
         .from("jurisdictions")
         .select("id")
+        .eq("tenant_id", webinar.tenant_id)
         .ilike("country", country_text.trim())
         .maybeSingle();
       jurisdictionId = j?.id ?? null;
@@ -140,7 +141,7 @@ Deno.serve(async (req) => {
         stage: "new",
         net_worth_signal: "unknown",
         notes: `Registered for webinar: ${webinar.title}`,
-        tenant_id: "00000000-0000-0000-0000-000000000001", // TODO Phase 5: resolve from which tenant this page belongs to
+        tenant_id: webinar.tenant_id, // the webinar's own tenant is the source of truth
       })
       .select()
       .single();
@@ -156,7 +157,7 @@ Deno.serve(async (req) => {
       phone: phone || null,
       country_text: country_text || null,
       ad_tracking: ad_tracking || null,
-      tenant_id: "00000000-0000-0000-0000-000000000001", // TODO Phase 5: resolve from which tenant this page belongs to
+      tenant_id: webinar.tenant_id, // the webinar's own tenant is the source of truth
     });
     if (regErr) throw regErr;
 

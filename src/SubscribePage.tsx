@@ -13,6 +13,7 @@ export default function SubscribePage() {
   // cold-outreach email, e.g. /subscribe?lead_id=xxx
   const params = new URLSearchParams(window.location.search);
   const leadId = params.get("lead_id");
+  const tenantSlug = params.get("t");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -20,7 +21,7 @@ export default function SubscribePage() {
     setErrorMsg("");
     try {
       const { data, error } = await supabase.functions.invoke("subscribe", {
-        body: { email, full_name: fullName, lead_id: leadId, source: leadId ? "cold_outreach_cta" : "website" },
+        body: { email, full_name: fullName, lead_id: leadId, source: leadId ? "cold_outreach_cta" : "website", tenant_slug: tenantSlug },
       });
       if (error) throw error;
       setStatus("sent");

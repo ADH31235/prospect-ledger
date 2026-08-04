@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
 
 
   try {
-    const { email, full_name, lead_id, source } = await req.json();
+    const { email, full_name, lead_id, source, tenant_slug } = await req.json();
 
     if (!email || typeof email !== "string" || !email.includes("@")) {
       return new Response(JSON.stringify({ error: "Valid email required" }), {
@@ -61,10 +61,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if already subscribed
+    let tenantId = "00000000-0000-0000-0000-000000000001";
+    if (tenant_slug) {
+      const { data: t } = await supabase.from("tenants").select("id").eq("slug", tenant_slug).maybeSingle();
+      if (t) tenantId = t.id;
+    }
+
+    // Scoped to this tenant specifically — otherwise two different
+    // companies' newsletters sharing a subscriber's email address
+    // would incorrectly match and update each other's rows.
     const { data: existing } = await supabase
       .from("newsletter_subscribers")
       .select("id, status")
+      .eq("tenant_id", tenantId)
       .eq("email", email)
       .maybeSingle();
 
@@ -87,7 +96,7 @@ Deno.serve(async (req) => {
     } else {
       const { data: created, error } = await supabase
         .from("newsletter_subscribers")
-        .insert({ email, full_name: full_name || null, lead_id: lead_id || null, source: source || "website", tenant_id: "00000000-0000-0000-0000-000000000001" })
+        .insert({ email, full_name: full_name || null, lead_id: lead_id || null, source: source || "website", tenant_id: tenantId })
         .select("confirmation_token")
         .single();
       if (error) throw error;
