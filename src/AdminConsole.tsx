@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Building2 } from "lucide-react";
+import { Building2, TrendingUp, TrendingDown } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import { TOKENS } from "./theme";
 
@@ -14,6 +14,7 @@ const STATUS_META = {
 
 export default function AdminConsole() {
   const [tenants, setTenants] = useState([]);
+  const [kpis, setKpis] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -28,6 +29,7 @@ export default function AdminConsole() {
       const { data, error } = await supabase.functions.invoke("admin-overview");
       if (error) throw error;
       setTenants(data?.tenants ?? []);
+      setKpis(data?.kpis ?? null);
     } catch (err) {
       setError(err?.message ?? "Couldn't load — you may not have access to this page.");
     } finally {
@@ -35,7 +37,6 @@ export default function AdminConsole() {
     }
   }
 
-  const activeCount = tenants.filter((t) => t.subscription_status === "active" || t.subscription_status === "trialing").length;
   const totalLeads = tenants.reduce((sum, t) => sum + (t.lead_count ?? 0), 0);
 
   return (
@@ -56,19 +57,54 @@ export default function AdminConsole() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-px mb-6" style={{ background: TOKENS.border }}>
+            <div className="grid grid-cols-4 gap-px mb-3" style={{ background: TOKENS.border }}>
               {[
+                {
+                  label: "MRR",
+                  value: kpis?.mrr?.length
+                    ? kpis.mrr.map((m) => `${m.currency} ${m.amount.toLocaleString()}`).join(" + ")
+                    : "—",
+                },
                 { label: "Companies", value: tenants.length },
-                { label: "Active subscriptions", value: activeCount },
-                { label: "Total leads across all", value: totalLeads },
+                { label: "Paying now", value: (kpis?.statusCounts?.active ?? 0) + (kpis?.statusCounts?.trialing ?? 0) },
+                { label: "Conversion rate", value: `${kpis?.conversionRate ?? 0}%` },
               ].map((s) => (
                 <div key={s.label} style={{ background: TOKENS.surface, padding: "16px 18px" }}>
                   <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
                     {s.label}
                   </div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 22 }}>{s.value}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20 }}>{s.value}</div>
                 </div>
               ))}
+            </div>
+
+            <div className="grid grid-cols-3 gap-px mb-6" style={{ background: TOKENS.border }}>
+              <div style={{ background: TOKENS.surface, padding: "16px 18px" }}>
+                <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                  New this month
+                </div>
+                <div className="flex items-center gap-2">
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20 }}>{kpis?.newThisMonth ?? 0}</div>
+                  {kpis && kpis.newThisMonth !== kpis.newLastMonth && (
+                    <span className="flex items-center gap-1" style={{ fontSize: 11.5, color: kpis.newThisMonth >= kpis.newLastMonth ? TOKENS.riskLow : TOKENS.riskBlocked }}>
+                      {kpis.newThisMonth >= kpis.newLastMonth ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                      vs {kpis.newLastMonth} last month
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ background: TOKENS.surface, padding: "16px 18px" }}>
+                <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                  Churned
+                </div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20 }}>{kpis?.churnedCount ?? 0}</div>
+              </div>
+              <div style={{ background: TOKENS.surface, padding: "16px 18px" }}>
+                <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                  Total leads across all
+                </div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20 }}>{totalLeads}</div>
+              </div>
             </div>
 
             <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
@@ -110,7 +146,7 @@ export default function AdminConsole() {
                           {meta.label}
                         </span>
                       </div>
-                      <div style={{ fontSize: 12.5, color: TOKENS.textMuted }}>{t.plan ?? "—"}</div>
+                      <div style={{ fontSize: 12.5, color: TOKENS.textMuted }}>{t.plan_name ?? t.plan ?? "—"}</div>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>{t.user_count}</div>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>{t.lead_count}</div>
                       <div style={{ fontSize: 12.5, color: TOKENS.textMuted }}>

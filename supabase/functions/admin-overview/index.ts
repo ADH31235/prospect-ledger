@@ -17,6 +17,35 @@ const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const adminClient = createClient(supabaseUrl, serviceRoleKey);
+const PADDLE_API_KEY = Deno.env.get("PADDLE_API_KEY")!;
+const PADDLE_API_BASE_URL = Deno.env.get("PADDLE_API_BASE_URL") || "https://sandbox-api.paddle.com";
+
+// Cheap in-memory cache within one function invocation — several
+// tenants usually share the same plan, no need to hit Paddle's
+// API once per tenant.
+async function getPriceDetails(priceId: string, cache: Map<string, any>) {
+  if (cache.has(priceId)) return cache.get(priceId);
+  try {
+    const res = await fetch(`${PADDLE_API_BASE_URL}/prices/${priceId}`, {
+      headers: { Authorization: `Bearer ${PADDLE_API_KEY}` },
+    });
+    if (!res.ok) {
+      cache.set(priceId, null);
+      return null;
+    }
+    const json = await res.json();
+    const details = {
+      name: json.data?.name || json.data?.description || priceId,
+      amountMinor: parseInt(json.data?.unit_price?.amount ?? "0", 10),
+      currency: json.data?.unit_price?.currency_code ?? "USD",
+    };
+    cache.set(priceId, details);
+    return details;
+  } catch {
+    cache.set(priceId, null);
+    return null;
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,13 +103,71 @@ Deno.serve(async (req) => {
       userCountByTenant[row.tenant_id] = (userCountByTenant[row.tenant_id] ?? 0) + 1;
     }
 
-    const result = (tenants ?? []).map((t: any) => ({
-      ...t,
-      lead_count: leadCountByTenant[t.id] ?? 0,
-      user_count: userCountByTenant[t.id] ?? 0,
+    const priceCache = new Map<string, any>();
+    const distinctPlans = [...new Set((tenants ?? []).map((t: any) => t.plan).filter(Boolean))];
+    await Promise.all(distinctPlans.map((p) => getPriceDetails(p as string, priceCache)));
+
+    const result = (tenants ?? []).map((t: any) => {
+      const priceInfo = t.plan ? priceCache.get(t.plan) : null;
+      return {
+        ...t,
+        lead_count: leadCountByTenant[t.id] ?? 0,
+        user_count: userCountByTenant[t.id] ?? 0,
+        plan_name: priceInfo?.name ?? t.plan,
+      };
+    });
+
+    // ------------------------------------------------------------
+    // KPIs — computed from what we actually have data for. Note:
+    // this is a current snapshot plus a this-month-vs-last-month
+    // comparison on new signups (real, from tenants.created_at).
+    // A true revenue trend over time would need a lightweight
+    // billing-events history table — not built yet, flagged as a
+    // natural next addition if that's wanted later, same pattern
+    // as lead_stage_history.
+    // ------------------------------------------------------------
+    const statusCounts: Record<string, number> = {};
+    for (const t of result) {
+      statusCounts[t.subscription_status] = (statusCounts[t.subscription_status] ?? 0) + 1;
+    }
+
+    const billableStatuses = ["active", "trialing"];
+    const mrrByCurrency: Record<string, number> = {};
+    for (const t of result) {
+      if (billableStatuses.includes(t.subscription_status) && t.plan) {
+        const priceInfo = priceCache.get(t.plan);
+        if (priceInfo) {
+          mrrByCurrency[priceInfo.currency] = (mrrByCurrency[priceInfo.currency] ?? 0) + priceInfo.amountMinor;
+        }
+      }
+    }
+    const mrr = Object.entries(mrrByCurrency).map(([currency, amountMinor]) => ({
+      currency, amount: amountMinor / 100,
     }));
 
-    return new Response(JSON.stringify({ tenants: result }), {
+    const now = new Date();
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const newThisMonth = result.filter((t) => new Date(t.created_at) >= startOfThisMonth).length;
+    const newLastMonth = result.filter((t) => {
+      const d = new Date(t.created_at);
+      return d >= startOfLastMonth && d < startOfThisMonth;
+    }).length;
+
+    const totalTenants = result.length;
+    const payingCount = (statusCounts.active ?? 0) + (statusCounts.trialing ?? 0);
+    const conversionRate = totalTenants ? Math.round((payingCount / totalTenants) * 100) : 0;
+
+    const kpis = {
+      mrr,
+      statusCounts,
+      newThisMonth,
+      newLastMonth,
+      conversionRate,
+      churnedCount: statusCounts.canceled ?? 0,
+    };
+
+    return new Response(JSON.stringify({ tenants: result, kpis }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
