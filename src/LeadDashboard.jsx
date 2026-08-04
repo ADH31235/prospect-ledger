@@ -20,6 +20,9 @@ import {
 } from "lucide-react";
 import { TOKENS } from "./theme";
 
+const CURRENCIES = ["GBP", "USD", "EUR", "AED", "CHF"];
+const CURRENCY_SYMBOLS = { GBP: "£", USD: "$", EUR: "€", AED: "AED ", CHF: "CHF " };
+
 // ============================================================
 // DESIGN TOKENS
 // A private-banking ledger, not a SaaS dashboard: dense rows,
@@ -123,9 +126,10 @@ function getJurisdiction(jurisdictions, key) {
   return jurisdictions[key] ?? UNSET_JURISDICTION;
 }
 
-function formatMoney(n) {
+function formatMoney(n, currency = "GBP") {
   if (n == null) return "—";
-  return "£" + (n / 1_000_000).toFixed(1) + "M";
+  const symbol = CURRENCY_SYMBOLS[currency] ?? currency + " ";
+  return symbol + (n / 1_000_000).toFixed(1) + "M";
 }
 
 function formatDate(d) {
@@ -213,6 +217,8 @@ export default function LeadDashboard({
   const [showAddLead, setShowAddLead] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
+  const [assetsDisplayCurrency, setAssetsDisplayCurrency] = useState("GBP");
+  const [assetsManualRates, setAssetsManualRates] = useState({});
   const [selectedForBulk, setSelectedForBulk] = useState(() => new Set());
   const [bulkJurisdictionId, setBulkJurisdictionId] = useState("");
   const [bulkWorking, setBulkWorking] = useState(false);
@@ -249,6 +255,7 @@ export default function LeadDashboard({
       jurisdiction_id: selected.jurisdiction || "",
       net_worth_signal: selected.netWorth || "unknown",
       estimated_investable_assets: selected.assets ?? "",
+      currency: selected.currency || "GBP",
       liquidity_event: selected.liquidityEvent || "none",
       liquidity_event_date: selected.liquidityDate || "",
       existing_advisor: selected.existingAdvisor == null ? "" : (selected.existingAdvisor ? "yes" : "no"),
@@ -365,10 +372,16 @@ export default function LeadDashboard({
     const total = leads.length;
     const qualifiedOrClient = leads.filter((l) => l.stage === "qualified" || l.stage === "client").length;
     const blocked = leads.filter((l) => getJurisdiction(jurisdictions, l.jurisdiction).risk === "do_not_contact").length;
-    const pipelineAssets = leads
+    const pipelineAssetsByCurrency = leads
       .filter((l) => l.stage !== "disqualified")
-      .reduce((sum, l) => sum + (l.assets ?? 0), 0);
-    return { total, qualifiedOrClient, blocked, pipelineAssets };
+      .reduce((acc, l) => {
+        if (l.assets) {
+          const cur = l.currency || "GBP";
+          acc[cur] = (acc[cur] ?? 0) + l.assets;
+        }
+        return acc;
+      }, {});
+    return { total, qualifiedOrClient, blocked, pipelineAssetsByCurrency };
   }, [leads]);
 
   const selected = leads.find((l) => l.id === selectedId) ?? null;
@@ -476,6 +489,7 @@ export default function LeadDashboard({
                   stage: lead.stage ?? "",
                   score: lead.score ?? 0,
                   estimated_investable_assets: lead.assets ?? "",
+                  currency: lead.currency ?? "GBP",
                   net_worth_signal: lead.netWorth ?? "",
                   liquidity_event: lead.liquidityEvent ?? "",
                   source: lead.source ?? "",
@@ -523,12 +537,21 @@ export default function LeadDashboard({
         </div>
 
         {/* Stat strip */}
-        <div className="grid grid-cols-4 gap-px mb-7" style={{ background: TOKENS.border }}>
+        <div className="grid grid-cols-4 gap-px mb-3" style={{ background: TOKENS.border }}>
           {[
             { label: "Total prospects", value: stats.total },
             { label: "Qualified or client", value: stats.qualifiedOrClient },
             { label: "Blocked — compliance", value: stats.blocked, warn: stats.blocked > 0 },
-            { label: "Pipeline assets (est.)", value: formatMoney(stats.pipelineAssets) },
+            {
+              label: "Pipeline assets (est.)",
+              value: formatMoney(
+                Object.keys(stats.pipelineAssetsByCurrency).reduce((sum, cur) => {
+                  const rate = cur === assetsDisplayCurrency ? 1 : (assetsManualRates[cur] ?? 1);
+                  return sum + stats.pipelineAssetsByCurrency[cur] * rate;
+                }, 0),
+                assetsDisplayCurrency
+              ),
+            },
           ].map((s) => (
             <div key={s.label} style={{ background: TOKENS.surface, padding: "16px 18px" }}>
               <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
@@ -547,6 +570,35 @@ export default function LeadDashboard({
             </div>
           ))}
         </div>
+
+        {Object.keys(stats.pipelineAssetsByCurrency).length > 1 && (
+          <div style={{ background: TOKENS.surface, borderRadius: 8, padding: 14, marginBottom: 24 }}>
+            <p style={{ fontSize: 11.5, color: TOKENS.textMuted, marginBottom: 10 }}>
+              Prospects have assets in more than one currency. No live exchange-rate feed is connected — set your own rates below to combine them into the total above.
+            </p>
+            <div className="flex items-center gap-3 flex-wrap mb-2">
+              <label style={{ fontSize: 12, color: TOKENS.textMuted }}>Show total in</label>
+              <select
+                value={assetsDisplayCurrency}
+                onChange={(e) => setAssetsDisplayCurrency(e.target.value)}
+                style={{ background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
+              >
+                {Object.keys(stats.pipelineAssetsByCurrency).map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            {Object.keys(stats.pipelineAssetsByCurrency).filter((c) => c !== assetsDisplayCurrency).map((c) => (
+              <div key={c} className="flex items-center gap-2 mb-1.5">
+                <span style={{ fontSize: 12, color: TOKENS.textMuted, width: 90 }}>1 {c} =</span>
+                <input
+                  type="number" step="0.0001" value={assetsManualRates[c] ?? 1}
+                  onChange={(e) => setAssetsManualRates((prev) => ({ ...prev, [c]: parseFloat(e.target.value) || 0 }))}
+                  style={{ width: 90, background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
+                />
+                <span style={{ fontSize: 12, color: TOKENS.textMuted }}>{assetsDisplayCurrency}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex items-center gap-3 mb-3 flex-wrap">
@@ -930,7 +982,7 @@ export default function LeadDashboard({
                   </span>
                 </div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
-                  {formatMoney(lead.assets)}
+                  {formatMoney(lead.assets, lead.currency)}
                 </div>
                 <ScoreBar score={lead.score} />
                 <div style={{ fontSize: 12.5, color: TOKENS.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
@@ -1045,7 +1097,7 @@ export default function LeadDashboard({
               <dl className="grid grid-cols-2 gap-y-4 gap-x-3 mb-6">
                 {[
                   ["Score", selected.score],
-                  ["Est. assets", formatMoney(selected.assets)],
+                  ["Est. assets", formatMoney(selected.assets, selected.currency)],
                   ["Email", selected.email || "—"],
                   ["Phone", selected.phone || "—"],
                   ["LinkedIn", selected.linkedinUrl || "—"],
@@ -1142,7 +1194,15 @@ export default function LeadDashboard({
                           <option value="inherited_wealth">Inherited wealth</option>
                         </select>
                       </div>
-                      <div><label style={labelStyle}>Est. assets (£)</label><input type="number" style={inputStyle} value={detailsDraft.estimated_investable_assets} onChange={(e) => dset("estimated_investable_assets", e.target.value)} /></div>
+                      <div>
+                        <label style={labelStyle}>Est. assets</label>
+                        <div className="flex gap-2">
+                          <select value={detailsDraft.currency} onChange={(e) => dset("currency", e.target.value)} style={{ ...inputStyle, flex: "0 0 80px" }}>
+                            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          <input type="number" style={inputStyle} value={detailsDraft.estimated_investable_assets} onChange={(e) => dset("estimated_investable_assets", e.target.value)} />
+                        </div>
+                      </div>
                       <div>
                         <label style={labelStyle}>Liquidity event</label>
                         <select style={inputStyle} value={detailsDraft.liquidity_event} onChange={(e) => dset("liquidity_event", e.target.value)}>
@@ -1458,7 +1518,7 @@ function AddLeadModal({ jurisdictions, onAddJurisdiction, onClose, onSubmit }) {
   const [form, setForm] = useState({
     full_name: "", email: "", company: "", job_title: "",
     jurisdiction_id: "", net_worth_signal: "unknown",
-    estimated_investable_assets: "", liquidity_event: "none",
+    estimated_investable_assets: "", currency: "GBP", liquidity_event: "none",
     liquidity_event_date: "", existing_advisor: "",
     source: "manual", referred_by: "", notes: "", date_of_birth: "",
   });
@@ -1501,6 +1561,7 @@ function AddLeadModal({ jurisdictions, onAddJurisdiction, onClose, onSubmit }) {
         estimated_investable_assets: form.estimated_investable_assets
           ? Number(form.estimated_investable_assets)
           : null,
+        currency: form.currency,
         liquidity_event: form.liquidity_event,
         liquidity_event_date: form.liquidity_event_date || null,
         existing_advisor: form.existing_advisor === "" ? null : form.existing_advisor === "yes",
@@ -1594,8 +1655,13 @@ function AddLeadModal({ jurisdictions, onAddJurisdiction, onClose, onSubmit }) {
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Est. assets (£)</label>
-            <input type="number" style={inputStyle} value={form.estimated_investable_assets} onChange={(e) => set("estimated_investable_assets", e.target.value)} placeholder="1000000" />
+            <label style={labelStyle}>Est. assets</label>
+            <div className="flex gap-2">
+              <select value={form.currency} onChange={(e) => set("currency", e.target.value)} style={{ ...inputStyle, flex: "0 0 80px" }}>
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input type="number" style={inputStyle} value={form.estimated_investable_assets} onChange={(e) => set("estimated_investable_assets", e.target.value)} placeholder="1000000" />
+            </div>
           </div>
 
           <div>
@@ -1684,6 +1750,7 @@ const COLUMN_ALIASES = {
   jurisdiction: ["jurisdiction", "country", "market", "location"],
   net_worth_signal: ["net worth signal", "net worth", "wealth signal"],
   estimated_investable_assets: ["assets", "estimated assets", "aum", "investable assets", "net worth (gbp)", "estimated_investable_assets"],
+  currency: ["currency", "asset currency", "assets currency"],
   liquidity_event: ["liquidity event", "liquidity_event", "event type"],
   source: ["source", "lead source"],
   referred_by: ["referred by", "referred_by", "referrer"],
@@ -1779,6 +1846,7 @@ function ImportModal({ jurisdictions, onClose, onImport }) {
           jurisdiction_id: resolvedJurisdiction,
           net_worth_signal: mapping.net_worth_signal ? row[mapping.net_worth_signal] || "unknown" : "unknown",
           estimated_investable_assets: mapping.estimated_investable_assets ? row[mapping.estimated_investable_assets] : null,
+          currency: mapping.currency ? (row[mapping.currency] || "GBP").toUpperCase() : "GBP",
           liquidity_event: mapping.liquidity_event ? row[mapping.liquidity_event] || "none" : "none",
           source: mapping.source ? row[mapping.source] || "import" : "import",
           referred_by: mapping.referred_by ? row[mapping.referred_by] : "",
