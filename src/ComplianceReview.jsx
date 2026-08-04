@@ -1,16 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ShieldCheck, ShieldAlert, ShieldX, RotateCcw, FileText, Globe2, AlertTriangle } from "lucide-react";
 import { supabase } from "./supabaseClient";
+import { TOKENS } from "./theme";
 
 // Same ledger palette as LeadDashboard.jsx, kept local so this
 // screen doesn't depend on that file — it's a standalone admin
 // view you'd route to separately (e.g. /compliance).
-const TOKENS = {
-  bg: "#0E141C", surface: "#161E29", surfaceRaised: "#1C2733",
-  border: "#2A3644", borderFaint: "#212B37",
-  textPrimary: "#E7ECF2", textMuted: "#8B98AC", textFaint: "#5C6879",
-  riskLow: "#4C9E76", riskReview: "#D9A441", riskBlocked: "#BD5A47",
-};
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,500;1,400&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap');`;
 

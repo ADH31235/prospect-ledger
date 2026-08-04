@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { TOKENS } from "./theme";
 
-const TOKENS = {
-  bg: "#0E141C", surface: "#161E29", border: "#2A3644",
-  textPrimary: "#E7ECF2", textMuted: "#8B98AC", riskLow: "#4C9E76", riskBlocked: "#BD5A47",
-};
 
 export default function NewsletterActionPage() {
   const [state, setState] = useState<"loading" | "confirmed" | "unsubscribed" | "error">("loading");

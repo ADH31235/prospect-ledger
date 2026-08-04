@@ -2,13 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Clock } from "lucide-react";
 import { useStageHistory } from "./useStageHistory";
 import { supabase } from "./supabaseClient";
+import { TOKENS } from "./theme";
 
-const TOKENS = {
-  bg: "#0E141C", surface: "#161E29", surfaceRaised: "#1C2733",
-  border: "#2A3644", borderFaint: "#212B37", textPrimary: "#E7ECF2",
-  textMuted: "#8B98AC", textFaint: "#5C6879", gold: "#C9A227",
-  riskLow: "#4C9E76", riskReview: "#D9A441", riskBlocked: "#BD5A47",
-};
 
 const STAGE_ORDER = ["new", "enriched", "contacted", "engaged", "qualified", "client"];
 const STAGE_LABELS = {

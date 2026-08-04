@@ -1,10 +1,7 @@
 import React, { useState } from "react";
 import { supabase } from "./supabaseClient";
+import { TOKENS } from "./theme";
 
-const TOKENS = {
-  bg: "#0E141C", surface: "#161E29", surfaceRaised: "#1C2733",
-  border: "#2A3644", textPrimary: "#E7ECF2", textMuted: "#8B98AC", textFaint: "#5C6879", gold: "#C9A227",
-};
 
 export default function SubscribePage() {
   const [email, setEmail] = useState("");

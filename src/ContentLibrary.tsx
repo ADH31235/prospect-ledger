@@ -1,12 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Plus, Copy, ExternalLink, Users, Pencil } from "lucide-react";
 import { supabase } from "./supabaseClient";
+import { TOKENS } from "./theme";
 
-const TOKENS = {
-  bg: "#0E141C", surface: "#161E29", surfaceRaised: "#1C2733",
-  border: "#2A3644", borderFaint: "#212B37", textPrimary: "#E7ECF2",
-  textMuted: "#8B98AC", textFaint: "#5C6879", gold: "#C9A227",
-};
 
 const TYPE_LABELS = {
   linkedin_post: "LinkedIn post",

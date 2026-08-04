@@ -18,6 +18,7 @@ import {
   Linkedin,
   RefreshCw,
 } from "lucide-react";
+import { TOKENS } from "./theme";
 
 // ============================================================
 // DESIGN TOKENS
@@ -26,21 +27,6 @@ import {
 // signature element — the compliance seal — carrying the one
 // piece of real visual weight in the page.
 // ============================================================
-const TOKENS = {
-  bg: "#0E141C",
-  surface: "#161E29",
-  surfaceRaised: "#1C2733",
-  border: "#2A3644",
-  borderFaint: "#212B37",
-  textPrimary: "#E7ECF2",
-  textMuted: "#8B98AC",
-  textFaint: "#5C6879",
-  gold: "#C9A227",
-  goldFaint: "#8A7433",
-  riskLow: "#4C9E76",
-  riskReview: "#D9A441",
-  riskBlocked: "#BD5A47",
-};
 
 const FONT_IMPORT = `
 @import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');

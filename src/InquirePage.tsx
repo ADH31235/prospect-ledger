@@ -1,29 +1,8 @@
 import React, { useState } from "react";
 import { supabase } from "./supabaseClient";
+import { captureAdTracking } from "./adTracking";
+import { TOKENS } from "./theme";
 
-const TOKENS = {
-  bg: "#0E141C", surface: "#161E29", surfaceRaised: "#1C2733",
-  border: "#2A3644", textPrimary: "#E7ECF2", textMuted: "#8B98AC", textFaint: "#5C6879", gold: "#C9A227",
-};
-
-// Every param a Meta/Google ad click can carry, captured verbatim
-// so campaigns/adsets/ads/placements can be attributed later —
-// mirrors the standard Meta Ads Manager tracking template.
-const TRACKED_PARAMS = [
-  "campaign_name", "adset_name", "ad_name", "placement",
-  "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "utm_id",
-  "fbclid", "gclid",
-];
-
-function captureAdTracking() {
-  const params = new URLSearchParams(window.location.search);
-  const tracking = {};
-  for (const key of TRACKED_PARAMS) {
-    const value = params.get(key);
-    if (value) tracking[key] = value;
-  }
-  return tracking;
-}
 
 const SITUATION_OPTIONS = [
   { value: "liquidity_event", label: "A recent liquidity event", sub: "Exit, inheritance, sale, retirement" },

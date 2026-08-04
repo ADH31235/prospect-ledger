@@ -1,12 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Square } from "lucide-react";
+import { TOKENS } from "./theme";
 
-const TOKENS = {
-  bg: "#0E141C", surface: "#161E29", surfaceRaised: "#1C2733",
-  border: "#2A3644", borderFaint: "#212B37", textPrimary: "#E7ECF2",
-  textMuted: "#8B98AC", textFaint: "#5C6879", gold: "#C9A227",
-  riskLow: "#4C9E76", riskReview: "#D9A441", riskBlocked: "#BD5A47",
-};
 
 const STATUS_META = {
   active: { label: "Active", color: TOKENS.riskLow },

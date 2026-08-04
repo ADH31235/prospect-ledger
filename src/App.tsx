@@ -18,9 +18,11 @@ import NewsletterActionPage from "./NewsletterActionPage";
 import Login, { useSession } from "./Login";
 import { useLeads } from "./useLeads";
 import { useSequences } from "./useSequences";
+import { TOKENS, NAV_BG, BORDER } from "./theme";
+import { supabase } from "./supabaseClient";
+import { LogOut } from "lucide-react";
 
-const NAV_BG = "#0A0F16";
-const BORDER = "#2A3644";
+
 
 function AuthenticatedApp() {
   const [view, setView] = useState<"ledger" | "compliance" | "newsletter" | "deals" | "sequences" | "reports" | "webinars" | "content">("ledger");
@@ -57,13 +59,25 @@ function AuthenticatedApp() {
             style={{
               display: "flex", alignItems: "center", gap: 6,
               background: "none", border: "none", cursor: "pointer", padding: "10px 12px", fontSize: 13,
-              color: view === key ? "#E7ECF2" : "#5C6879",
-              borderBottom: view === key ? "2px solid #C9A227" : "2px solid transparent",
+              color: view === key ? TOKENS.textPrimary : TOKENS.textFaint,
+              borderBottom: view === key ? `2px solid ${TOKENS.gold}` : "2px solid transparent",
             }}
           >
             <Icon size={14} /> {label}
           </button>
         ))}
+
+        <button
+          onClick={() => supabase.auth.signOut()}
+          title="Sign out"
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            background: "none", border: "none", cursor: "pointer", padding: "8px 12px", fontSize: 13,
+            color: TOKENS.textFaint, marginLeft: "auto",
+          }}
+        >
+          <LogOut size={14} /> Sign out
+        </button>
       </nav>
 
       <div style={{ flex: 1, overflow: "auto" }}>
