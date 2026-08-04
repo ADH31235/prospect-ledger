@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { CreditCard, CheckCircle2 } from "lucide-react";
+import React, { useState } from "react";
+import { CreditCard, CheckCircle2, RefreshCw } from "lucide-react";
 import { useTenant } from "./useTenant";
 import { TOKENS } from "./theme";
 
@@ -41,11 +41,6 @@ export default function BillingTab() {
   const { tenant, loading, refetch } = useTenant();
   const [checkoutOpening, setCheckoutOpening] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
-
-  useEffect(() => {
-    const interval = setInterval(refetch, 4000);
-    return () => clearInterval(interval);
-  }, [refetch]);
 
   async function handleSubscribe() {
     if (!PADDLE_CLIENT_TOKEN) {
@@ -103,7 +98,12 @@ export default function BillingTab() {
                   </span>
                 </div>
               </div>
-              {isActive && <CheckCircle2 size={22} color={TOKENS.riskLow} />}
+              <div className="flex items-center gap-2">
+                {isActive && <CheckCircle2 size={22} color={TOKENS.riskLow} />}
+                <button onClick={refetch} title="Refresh status" style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.textFaint, display: "flex" }}>
+                  <RefreshCw size={16} />
+                </button>
+              </div>
             </div>
 
             {tenant?.current_period_end && (
