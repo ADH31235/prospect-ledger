@@ -160,6 +160,7 @@ Deno.serve(async (req) => {
         stage: "new",
         net_worth_signal: "unknown", // deliberately not inferred from self-reported claims alone
         notes: interest_note ? `Inbound inquiry: ${interest_note}` : "Inbound inquiry via landing page",
+        tenant_id: "00000000-0000-0000-0000-000000000001", // TODO Phase 5: resolve from which tenant this page belongs to
       })
       .select()
       .single();

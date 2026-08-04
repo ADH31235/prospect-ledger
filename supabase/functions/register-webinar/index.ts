@@ -140,6 +140,7 @@ Deno.serve(async (req) => {
         stage: "new",
         net_worth_signal: "unknown",
         notes: `Registered for webinar: ${webinar.title}`,
+        tenant_id: "00000000-0000-0000-0000-000000000001", // TODO Phase 5: resolve from which tenant this page belongs to
       })
       .select()
       .single();
@@ -155,6 +156,7 @@ Deno.serve(async (req) => {
       phone: phone || null,
       country_text: country_text || null,
       ad_tracking: ad_tracking || null,
+      tenant_id: "00000000-0000-0000-0000-000000000001", // TODO Phase 5: resolve from which tenant this page belongs to
     });
     if (regErr) throw regErr;
 

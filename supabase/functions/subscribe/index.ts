@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
     } else {
       const { data: created, error } = await supabase
         .from("newsletter_subscribers")
-        .insert({ email, full_name: full_name || null, lead_id: lead_id || null, source: source || "website" })
+        .insert({ email, full_name: full_name || null, lead_id: lead_id || null, source: source || "website", tenant_id: "00000000-0000-0000-0000-000000000001" })
         .select("confirmation_token")
         .single();
       if (error) throw error;
