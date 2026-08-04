@@ -93,7 +93,7 @@ export default function SequencesOverview({ getAllEnrollments, onStopEnrollment 
           </div>
         </div>
 
-        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden" }}>
+        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
           <div
             className="grid px-4 py-2.5"
             style={{
@@ -124,7 +124,7 @@ export default function SequencesOverview({ getAllEnrollments, onStopEnrollment 
                   style={{
                     gridTemplateColumns: "1.6fr 1.6fr 1fr 0.6fr 1fr 1fr 0.6fr",
                     gap: 12, padding: "10px 16px",
-                    background: i % 2 === 0 ? TOKENS.surface : "transparent",
+                    background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8",
                     borderBottom: i < filtered.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
                   }}
                 >

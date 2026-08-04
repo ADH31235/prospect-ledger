@@ -121,7 +121,7 @@ export default function NewsletterAdmin() {
           <Users size={14} color={TOKENS.textFaint} />
           <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em" }}>Subscribers</div>
         </div>
-        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden" }}>
+        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
           {loading ? (
             <div style={{ padding: 20, color: TOKENS.textFaint, fontSize: 13 }}>Loading…</div>
           ) : subscribers.length === 0 ? (
@@ -129,7 +129,7 @@ export default function NewsletterAdmin() {
           ) : (
             subscribers.map((s, i) => (
               <div key={s.id} className="flex items-center justify-between px-4 py-2.5" style={{
-                background: i % 2 === 0 ? TOKENS.surface : "transparent",
+                background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8",
                 borderBottom: i < subscribers.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
               }}>
                 <div>

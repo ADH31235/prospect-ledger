@@ -437,12 +437,9 @@ export default function LeadDashboard({
             <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 30, letterSpacing: "-0.01em", color: TOKENS.ivory }}>
               Prospect Ledger
             </h1>
-            <p style={{ color: TOKENS.ivoryMuted, fontSize: 13, marginTop: 2 }}>
-              Personal book
-            </p>
           </div>
           <div className="flex items-center gap-4">
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TOKENS.textFaint, textAlign: "right" }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TOKENS.ivoryMuted, textAlign: "right" }}>
               as of {formatDate("2026-07-31")}
             </div>
             <button
@@ -743,9 +740,9 @@ export default function LeadDashboard({
         )}
 
         {/* Result count */}
-        <div style={{ fontSize: 12.5, color: TOKENS.textFaint, marginBottom: 10 }}>
-          Showing <span style={{ color: TOKENS.textPrimary, fontFamily: "'JetBrains Mono', monospace" }}>{filtered.length}</span> of{" "}
-          <span style={{ color: TOKENS.textPrimary, fontFamily: "'JetBrains Mono', monospace" }}>{leads.length}</span> prospects
+        <div style={{ fontSize: 12.5, color: TOKENS.ivoryMuted, marginBottom: 10 }}>
+          Showing <span style={{ color: TOKENS.ivory, fontFamily: "'JetBrains Mono', monospace" }}>{filtered.length}</span> of{" "}
+          <span style={{ color: TOKENS.ivory, fontFamily: "'JetBrains Mono', monospace" }}>{leads.length}</span> prospects
           {activeFilterCount > 0 || query.trim() !== "" ? " (filtered)" : ""}
         </div>
 
@@ -826,7 +823,7 @@ export default function LeadDashboard({
         )}
 
         {/* Table */}
-        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden" }}>
+        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
           <div
             className="grid items-center px-4 py-2.5"
             style={{
@@ -869,7 +866,7 @@ export default function LeadDashboard({
                   gridTemplateColumns: "24px 28px 2fr 1.3fr 1fr 1fr 1fr 0.9fr",
                   gap: 12,
                   padding: "12px 16px",
-                  background: i % 2 === 0 ? TOKENS.surface : "transparent",
+                  background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8",
                   borderBottom: i < filtered.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
                   opacity: blocked ? 0.55 : 1,
                 }}

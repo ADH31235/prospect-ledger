@@ -202,14 +202,14 @@ export default function ComplianceReview() {
         ) : (
           <>
             {tab === "jurisdictions" && (
-              <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
                 {jurisdictions.map((j, i) => (
                   <div
                     key={j.id}
                     onClick={() => setSelectedJurisdiction(j)}
                     className="flex items-center justify-between px-4 py-3 cursor-pointer"
                     style={{
-                      background: i % 2 === 0 ? TOKENS.surface : "transparent",
+                      background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8",
                       borderBottom: i < jurisdictions.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
                     }}
                   >
@@ -233,7 +233,7 @@ export default function ComplianceReview() {
             )}
 
             {tab === "templates" && (
-              <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
                 {pendingTemplates.length === 0 && (
                   <div style={{ padding: 24, textAlign: "center", color: TOKENS.textFaint, fontSize: 13 }}>
                     Nothing waiting on approval.
@@ -244,7 +244,7 @@ export default function ComplianceReview() {
                     key={step.id}
                     className="px-4 py-3"
                     style={{
-                      background: i % 2 === 0 ? TOKENS.surface : "transparent",
+                      background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8",
                       borderBottom: i < pendingTemplates.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
                     }}
                   >
@@ -276,7 +276,7 @@ export default function ComplianceReview() {
             )}
 
             {tab === "blocked" && (
-              <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
                 {blockedSends.length === 0 && (
                   <div style={{ padding: 24, textAlign: "center", color: TOKENS.textFaint, fontSize: 13 }}>
                     Nothing blocked right now.
@@ -287,7 +287,7 @@ export default function ComplianceReview() {
                     key={s.id}
                     className="flex items-center justify-between px-4 py-3"
                     style={{
-                      background: i % 2 === 0 ? TOKENS.surface : "transparent",
+                      background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8",
                       borderBottom: i < blockedSends.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
                     }}
                   >
@@ -314,7 +314,7 @@ export default function ComplianceReview() {
               </div>
             )}
             {tab === "provenance" && (
-              <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
                 {provenanceLeads.length === 0 && (
                   <div style={{ padding: 24, textAlign: "center", color: TOKENS.textFaint, fontSize: 13 }}>
                     Nothing flagged right now.
@@ -326,7 +326,7 @@ export default function ComplianceReview() {
                     onClick={() => setSelectedProvenanceLead(lead)}
                     className="flex items-center justify-between px-4 py-3 cursor-pointer"
                     style={{
-                      background: i % 2 === 0 ? TOKENS.surface : "transparent",
+                      background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8",
                       borderBottom: i < provenanceLeads.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
                     }}
                   >

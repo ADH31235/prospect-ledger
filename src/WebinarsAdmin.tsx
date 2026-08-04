@@ -167,7 +167,7 @@ export default function WebinarsAdmin() {
           </form>
         )}
 
-        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden" }}>
+        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
           {loading ? (
             <div style={{ padding: 24, color: TOKENS.textFaint, fontSize: 13 }}>Loading…</div>
           ) : webinars.length === 0 ? (
@@ -179,7 +179,7 @@ export default function WebinarsAdmin() {
               const meta = STATUS_META[w.status] ?? { label: w.status, color: TOKENS.textFaint };
               return (
                 <div key={w.id} className="px-4 py-3" style={{
-                  background: i % 2 === 0 ? TOKENS.surface : "transparent",
+                  background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8",
                   borderBottom: i < webinars.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
                 }}>
                   <div className="flex items-center justify-between mb-2">

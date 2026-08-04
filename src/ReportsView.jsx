@@ -389,7 +389,7 @@ export default function ReportsView({ leads, jurisdictions }) {
         <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
           Recent activity
         </div>
-        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden" }}>
+        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
           {historyLoading ? (
             <div style={{ padding: 20, fontSize: 12.5, color: TOKENS.textFaint }}>Loading…</div>
           ) : recentChanges.length === 0 ? (
@@ -402,7 +402,7 @@ export default function ReportsView({ leads, jurisdictions }) {
                 key={i}
                 className="flex items-center justify-between px-4 py-2.5"
                 style={{
-                  background: i % 2 === 0 ? TOKENS.surface : "transparent",
+                  background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8",
                   borderBottom: i < recentChanges.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
                 }}
               >
