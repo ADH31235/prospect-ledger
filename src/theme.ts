@@ -24,6 +24,7 @@ export const TOKENS = {
   // cards, which uses textPrimary/textMuted/textFaint above.
   ivory: "#F5F0E1",
   ivoryMuted: "#A9C9B8",
+  white: "#FFFFFF",
   riskLow: "#4C9E76",
   riskReview: "#D9A441",
   riskBlocked: "#BD5A47",

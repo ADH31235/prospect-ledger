@@ -434,12 +434,12 @@ export default function LeadDashboard({
         {/* Masthead */}
         <div className="flex items-baseline justify-between border-b pb-5 mb-6" style={{ borderColor: TOKENS.border }}>
           <div>
-            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 30, letterSpacing: "-0.01em", color: TOKENS.ivory }}>
+            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 30, letterSpacing: "-0.01em", color: TOKENS.white }}>
               Prospect Ledger
             </h1>
           </div>
           <div className="flex items-center gap-4">
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TOKENS.ivoryMuted, textAlign: "right" }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TOKENS.ivory, textAlign: "right" }}>
               as of {formatDate("2026-07-31")}
             </div>
             <button
@@ -513,7 +513,7 @@ export default function LeadDashboard({
               onClick={() => setShowAddLead(true)}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
-                background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
+                background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6,
                 padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
               }}
             >
@@ -604,7 +604,7 @@ export default function LeadDashboard({
             More filters
             {activeFilterCount > 0 && (
               <span style={{
-                background: TOKENS.gold, color: TOKENS.bg, borderRadius: 999, fontSize: 11,
+                background: TOKENS.ivory, color: TOKENS.bg, borderRadius: 999, fontSize: 11,
                 fontWeight: 700, padding: "1px 6px", minWidth: 16, textAlign: "center",
               }}>
                 {activeFilterCount}
@@ -740,7 +740,7 @@ export default function LeadDashboard({
         )}
 
         {/* Result count */}
-        <div style={{ fontSize: 12.5, color: TOKENS.ivoryMuted, marginBottom: 10 }}>
+        <div style={{ fontSize: 12.5, color: TOKENS.ivory, marginBottom: 10 }}>
           Showing <span style={{ color: TOKENS.ivory, fontFamily: "'JetBrains Mono', monospace" }}>{filtered.length}</span> of{" "}
           <span style={{ color: TOKENS.ivory, fontFamily: "'JetBrains Mono', monospace" }}>{leads.length}</span> prospects
           {activeFilterCount > 0 || query.trim() !== "" ? " (filtered)" : ""}
@@ -784,7 +784,7 @@ export default function LeadDashboard({
               }}
               disabled={!bulkJurisdictionId || bulkWorking}
               style={{
-                background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
+                background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6,
                 padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
                 opacity: !bulkJurisdictionId || bulkWorking ? 0.5 : 1,
               }}
@@ -1204,7 +1204,7 @@ export default function LeadDashboard({
                     type="button"
                     onClick={handleSaveDetails}
                     disabled={savingDetails}
-                    style={{ flex: 1, background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 0", fontSize: 12.5, fontWeight: 600, cursor: savingDetails ? "default" : "pointer" }}
+                    style={{ flex: 1, background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 0", fontSize: 12.5, fontWeight: 600, cursor: savingDetails ? "default" : "pointer" }}
                   >
                     {savingDetails ? "Saving…" : "Save details"}
                   </button>
@@ -1312,7 +1312,7 @@ export default function LeadDashboard({
                   }}
                   disabled={!selectedSequenceId || enrolling}
                   style={{
-                    background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
+                    background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6,
                     padding: "0 14px", fontSize: 12.5, fontWeight: 600, cursor: enrolling ? "default" : "pointer",
                     opacity: !selectedSequenceId || enrolling ? 0.6 : 1,
                   }}
@@ -1654,7 +1654,7 @@ function AddLeadModal({ jurisdictions, onAddJurisdiction, onClose, onSubmit }) {
           type="submit"
           disabled={saving}
           style={{
-            width: "100%", background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
+            width: "100%", background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6,
             padding: "10px 0", fontSize: 13.5, fontWeight: 600, cursor: saving ? "default" : "pointer",
             opacity: saving ? 0.7 : 1, marginTop: 4,
           }}
@@ -1882,7 +1882,7 @@ function ImportModal({ jurisdictions, onClose, onImport }) {
                 onClick={handleConfirm}
                 disabled={!mapping.full_name || importing}
                 style={{
-                  flex: 1, background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
+                  flex: 1, background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6,
                   padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: importing ? "default" : "pointer",
                   opacity: !mapping.full_name || importing ? 0.6 : 1,
                 }}
@@ -1909,7 +1909,7 @@ function ImportModal({ jurisdictions, onClose, onImport }) {
             <button
               type="button"
               onClick={onClose}
-              style={{ width: "100%", background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              style={{ width: "100%", background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
             >
               Done
             </button>

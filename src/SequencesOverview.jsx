@@ -51,10 +51,10 @@ export default function SequencesOverview({ getAllEnrollments, onStopEnrollment 
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,500&family=JetBrains+Mono:wght@400;500&display=swap');`}</style>
       <div className="max-w-5xl mx-auto px-6 py-8">
         <div className="border-b pb-5 mb-6" style={{ borderColor: TOKENS.border }}>
-          <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.ivory }}>
+          <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.white }}>
             Sequences
           </h1>
-          <p style={{ color: TOKENS.ivoryMuted, fontSize: 13, marginTop: 2 }}>
+          <p style={{ color: TOKENS.ivory, fontSize: 13, marginTop: 2 }}>
             Every prospect currently enrolled in outreach, across all sequences.
           </p>
         </div>

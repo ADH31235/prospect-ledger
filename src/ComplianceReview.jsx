@@ -159,10 +159,10 @@ export default function ComplianceReview() {
 
         <div className="flex items-baseline justify-between border-b pb-5 mb-6" style={{ borderColor: TOKENS.border }}>
           <div>
-            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.ivory }}>
+            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.white }}>
               Compliance Review
             </h1>
-            <p style={{ color: TOKENS.ivoryMuted, fontSize: 13, marginTop: 2 }}>
+            <p style={{ color: TOKENS.ivory, fontSize: 13, marginTop: 2 }}>
               {reviewRequiredCount} jurisdiction{reviewRequiredCount === 1 ? "" : "s"} awaiting decision · {pendingTemplates.length} template{pendingTemplates.length === 1 ? "" : "s"} unapproved · {provenanceLeads.length} provenance flag{provenanceLeads.length === 1 ? "" : "s"}
             </p>
           </div>

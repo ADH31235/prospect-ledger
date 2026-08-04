@@ -66,10 +66,10 @@ export default function NewsletterAdmin() {
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="flex items-baseline justify-between border-b pb-5 mb-6" style={{ borderColor: TOKENS.border }}>
           <div>
-            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.ivory }}>
+            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.white }}>
               Newsletter
             </h1>
-            <p style={{ color: TOKENS.ivoryMuted, fontSize: 13, marginTop: 2 }}>
+            <p style={{ color: TOKENS.ivory, fontSize: 13, marginTop: 2 }}>
               Opt-in only — nobody here was added except by their own confirmation.
             </p>
           </div>
@@ -108,7 +108,7 @@ export default function NewsletterAdmin() {
             onClick={handleSend}
             disabled={sending || !subject.trim() || !body.trim() || confirmedCount === 0}
             style={{
-              background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 16px",
+              background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 16px",
               fontSize: 13, fontWeight: 600, cursor: sending ? "default" : "pointer",
               opacity: sending || confirmedCount === 0 ? 0.6 : 1,
             }}

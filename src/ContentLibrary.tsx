@@ -138,16 +138,16 @@ export default function ContentLibrary() {
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="flex items-baseline justify-between border-b pb-5 mb-6" style={{ borderColor: TOKENS.border }}>
           <div>
-            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.ivory }}>
+            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.white }}>
               Content Library
             </h1>
-            <p style={{ color: TOKENS.ivoryMuted, fontSize: 13, marginTop: 2 }}>
+            <p style={{ color: TOKENS.ivory, fontSize: 13, marginTop: 2 }}>
               Log a post, get a tracking link, see how many leads it actually produced.
             </p>
           </div>
           <button
             onClick={startCreate}
-            style={{ display: "flex", alignItems: "center", gap: 6, background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
           >
             <Plus size={14} /> Log content
           </button>
@@ -175,7 +175,7 @@ export default function ContentLibrary() {
               <label style={labelStyle}>Body / notes (optional)</label>
               <textarea style={{ ...inputStyle, resize: "vertical" }} rows={3} value={form.body_preview} onChange={(e) => setForm((f) => ({ ...f, body_preview: e.target.value }))} placeholder="Paste the post text here for reference" />
             </div>
-            <button type="submit" style={{ background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            <button type="submit" style={{ background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
               {editingId ? "Update" : "Save"}
             </button>
           </form>

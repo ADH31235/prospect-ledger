@@ -80,16 +80,16 @@ export default function DealSignals({ jurisdictions, onAddLead }: { jurisdiction
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="flex items-baseline justify-between border-b pb-5 mb-6" style={{ borderColor: TOKENS.border }}>
           <div>
-            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.ivory }}>
+            <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.white }}>
               Deal Signals
             </h1>
-            <p style={{ color: TOKENS.ivoryMuted, fontSize: 13, marginTop: 2 }}>
+            <p style={{ color: TOKENS.ivory, fontSize: 13, marginTop: 2 }}>
               Companies with a spotted liquidity event — log first, identify the person, convert when ready.
             </p>
           </div>
           <button
             onClick={() => setShowAdd((v) => !v)}
-            style={{ display: "flex", alignItems: "center", gap: 6, background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
           >
             <Plus size={14} /> Log signal
           </button>
@@ -134,7 +134,7 @@ export default function DealSignals({ jurisdictions, onAddLead }: { jurisdiction
                 <textarea style={{ ...inputStyle, resize: "vertical" }} rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
               </div>
             </div>
-            <button type="submit" style={{ background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            <button type="submit" style={{ background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
               Save signal
             </button>
           </form>
