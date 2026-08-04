@@ -43,7 +43,7 @@ export default function Login() {
         background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 10,
         padding: 28, width: 300, display: "flex", flexDirection: "column", gap: 12,
       }}>
-        <div style={{ color: TOKENS.textPrimary, fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 18, marginBottom: 6 }}>Prospect Ledger</div>
+        <div style={{ color: TOKENS.textPrimary, fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 18, marginBottom: 6 }}>Trivara Hub</div>
         <input
           type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)}
           style={{ background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "9px 10px", color: TOKENS.textPrimary, fontSize: 13 }}
