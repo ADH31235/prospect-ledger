@@ -119,25 +119,33 @@ export default function AdminConsole() {
               </div>
             </div>
 
-            {kpis?.mrr?.length > 1 && (
+            {kpis?.mrr?.length > 0 && (
               <div style={{ background: TOKENS.surface, borderRadius: 10, padding: 16, marginBottom: 24 }}>
                 <div style={{ fontSize: 12, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-                  Combined total — manual exchange rates
+                  {kpis.mrr.length > 1 ? "Combined total — manual exchange rates" : "Revenue currency"}
                 </div>
-                <p style={{ fontSize: 12, color: TOKENS.textMuted, marginBottom: 12 }}>
-                  You're billing in more than one currency. There's no live exchange-rate feed connected, so enter your own rates below (relative to your chosen display currency) to see a combined estimate.
-                </p>
-                <div className="flex items-center gap-3 flex-wrap mb-3">
-                  <label style={{ fontSize: 12.5, color: TOKENS.textMuted }}>Show total in</label>
-                  <select
-                    value={displayCurrency ?? ""}
-                    onChange={(e) => setDisplayCurrency(e.target.value)}
-                    style={{ background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
-                  >
-                    {kpis.mrr.map((m) => <option key={m.currency} value={m.currency}>{m.currency}</option>)}
-                  </select>
-                </div>
-                {kpis.mrr.filter((m) => m.currency !== displayCurrency).map((m) => (
+                {kpis.mrr.length > 1 ? (
+                  <p style={{ fontSize: 12, color: TOKENS.textMuted, marginBottom: 12 }}>
+                    You're billing in more than one currency. There's no live exchange-rate feed connected, so enter your own rates below (relative to your chosen display currency) to see a combined estimate.
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 12, color: TOKENS.textMuted, marginBottom: 12 }}>
+                    Everyone's currently billed in {kpis.mrr[0].currency}. This section will let you pick a combined display currency and set manual conversion rates automatically, the moment a second currency shows up.
+                  </p>
+                )}
+                {kpis.mrr.length > 1 && (
+                  <div className="flex items-center gap-3 flex-wrap mb-3">
+                    <label style={{ fontSize: 12.5, color: TOKENS.textMuted }}>Show total in</label>
+                    <select
+                      value={displayCurrency ?? ""}
+                      onChange={(e) => setDisplayCurrency(e.target.value)}
+                      style={{ background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
+                    >
+                      {kpis.mrr.map((m) => <option key={m.currency} value={m.currency}>{m.currency}</option>)}
+                    </select>
+                  </div>
+                )}
+                {kpis.mrr.length > 1 && kpis.mrr.filter((m) => m.currency !== displayCurrency).map((m) => (
                   <div key={m.currency} className="flex items-center gap-2 mb-2">
                     <span style={{ fontSize: 12.5, color: TOKENS.textMuted, width: 100 }}>1 {m.currency} =</span>
                     <input
@@ -149,8 +157,8 @@ export default function AdminConsole() {
                   </div>
                 ))}
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18, marginTop: 8 }}>
-                  {displayCurrency} {kpis.mrr.reduce((sum, m) => {
-                    const rate = m.currency === displayCurrency ? 1 : (manualRates[m.currency] ?? 1);
+                  {kpis.mrr.length > 1 ? displayCurrency : kpis.mrr[0].currency} {kpis.mrr.reduce((sum, m) => {
+                    const rate = kpis.mrr.length > 1 ? (m.currency === displayCurrency ? 1 : (manualRates[m.currency] ?? 1)) : 1;
                     return sum + m.amount * rate;
                   }, 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </div>

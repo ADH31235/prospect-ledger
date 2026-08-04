@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Plus, Copy, ExternalLink, Users, Pencil } from "lucide-react";
+import { Plus, Copy, ExternalLink, Users, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import { useTenant } from "./useTenant";
 import { TOKENS } from "./theme";
@@ -115,6 +115,21 @@ export default function ContentLibrary() {
     await load();
   }
 
+  async function deleteContent(id, title) {
+    const count = leadCounts[pieces.find((p) => p.id === id)?.slug] ?? 0;
+    const warning = count > 0
+      ? `Delete "${title}"? ${count} lead${count === 1 ? " is" : "s are"} currently attributed to this piece — those leads stay, this just removes the content record and its tracking link. This cannot be undone.`
+      : `Delete "${title}"? This cannot be undone.`;
+    if (!window.confirm(warning)) return;
+    try {
+      const { error } = await supabase.from("content_pieces").delete().eq("id", id);
+      if (error) throw error;
+      await load();
+    } catch (err) {
+      alert(`Couldn't delete: ${err?.message ?? err}`);
+    }
+  }
+
   function buildLink(slug) {
     const dest = DESTINATIONS.find((d) => d.key === destination);
     let url = `${window.location.origin}${dest.path}`;
@@ -216,6 +231,9 @@ export default function ContentLibrary() {
                     </div>
                     <button onClick={() => startEdit(p)} title="Edit" style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.textMuted, display: "flex" }}>
                       <Pencil size={13} />
+                    </button>
+                    <button onClick={() => deleteContent(p.id, p.title)} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.riskBlocked, display: "flex" }}>
+                      <Trash2 size={13} />
                     </button>
                   </div>
                 </div>
