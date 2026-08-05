@@ -17,6 +17,7 @@ import {
   SlidersHorizontal,
   Linkedin,
   RefreshCw,
+  Cake,
 } from "lucide-react";
 import { TOKENS } from "./theme";
 
@@ -400,6 +401,29 @@ export default function LeadDashboard({
     return { total, qualifiedOrClient, blocked, pipelineAssetsByCurrency };
   }, [leads]);
 
+  // Birthdays in the next 30 days, wrapping correctly around New
+  // Year (e.g. a lead born in January still shows up in late
+  // December). Only considers month/day — the birth year itself
+  // is irrelevant here.
+  const upcomingBirthdays = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const results = [];
+    for (const l of leads) {
+      if (!l.dateOfBirth) continue;
+      const dob = new Date(l.dateOfBirth);
+      let thisYear = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+      thisYear.setHours(0, 0, 0, 0);
+      let daysUntil = Math.round((thisYear - today) / (1000 * 60 * 60 * 24));
+      if (daysUntil < 0) {
+        thisYear = new Date(today.getFullYear() + 1, dob.getMonth(), dob.getDate());
+        daysUntil = Math.round((thisYear - today) / (1000 * 60 * 60 * 24));
+      }
+      if (daysUntil <= 30) results.push({ lead: l, date: thisYear, daysUntil });
+    }
+    return results.sort((a, b) => a.daysUntil - b.daysUntil);
+  }, [leads]);
+
   const selected = leads.find((l) => l.id === selectedId) ?? null;
 
   const [enrollments, setEnrollments] = useState([]);
@@ -613,6 +637,33 @@ export default function LeadDashboard({
                 <span style={{ fontSize: 12, color: TOKENS.textMuted }}>{assetsDisplayCurrency}</span>
               </div>
             ))}
+          </div>
+        )}
+
+        {upcomingBirthdays.length > 0 && (
+          <div style={{
+            background: TOKENS.surface, border: `1px solid ${TOKENS.gold}55`, borderRadius: 8,
+            padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+          }}>
+            <Cake size={16} color={TOKENS.gold} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: 12.5, color: TOKENS.textMuted, flexShrink: 0 }}>
+              {upcomingBirthdays.length} birthday{upcomingBirthdays.length === 1 ? "" : "s"} in the next 30 days:
+            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              {upcomingBirthdays.map(({ lead, date, daysUntil }) => (
+                <button
+                  key={lead.id}
+                  onClick={() => setSelectedId(lead.id)}
+                  style={{
+                    fontSize: 12, background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.border}`, borderRadius: 999,
+                    padding: "3px 10px", cursor: "pointer", color: TOKENS.textPrimary,
+                  }}
+                >
+                  {lead.name} — {daysUntil === 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`}
+                  <span style={{ color: TOKENS.textFaint }}> ({date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })})</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
