@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Building2, TrendingUp, TrendingDown } from "lucide-react";
+import { Building2, TrendingUp, TrendingDown, Trash2 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import { TOKENS } from "./theme";
 
@@ -14,6 +14,12 @@ const STATUS_META = {
 
 export default function AdminConsole() {
   const [tenants, setTenants] = useState([]);
+  const [wipeTarget, setWipeTarget] = useState(null);
+  const [wipeConfirmText, setWipeConfirmText] = useState("");
+  const [wipeAlsoDeleteTenant, setWipeAlsoDeleteTenant] = useState(false);
+  const [wiping, setWiping] = useState(false);
+  const [wipeError, setWipeError] = useState("");
+  const [wipeResult, setWipeResult] = useState(null);
   const [kpis, setKpis] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -47,6 +53,36 @@ export default function AdminConsole() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleWipe() {
+    if (!wipeTarget || wipeConfirmText !== wipeTarget.name) return;
+    setWiping(true);
+    setWipeError("");
+    try {
+      const { data, error } = await supabase.functions.invoke("wipe-tenant-data", {
+        body: {
+          tenant_id: wipeTarget.id,
+          tenant_name_confirmation: wipeConfirmText,
+          also_delete_tenant: wipeAlsoDeleteTenant,
+        },
+      });
+      if (error) throw error;
+      setWipeResult(data);
+      await load();
+    } catch (err) {
+      setWipeError(err?.message ?? "Couldn't complete the wipe.");
+    } finally {
+      setWiping(false);
+    }
+  }
+
+  function closeWipeDialog() {
+    setWipeTarget(null);
+    setWipeConfirmText("");
+    setWipeAlsoDeleteTenant(false);
+    setWipeError("");
+    setWipeResult(null);
   }
 
   const totalLeads = tenants.reduce((sum, t) => sum + (t.lead_count ?? 0), 0);
@@ -206,7 +242,7 @@ export default function AdminConsole() {
                 className="grid px-4 py-2.5"
                 style={{ gridTemplateColumns: "2fr 1fr 1fr 0.8fr 0.8fr 1fr", gap: 12, background: "#F4F1E8", borderBottom: `1px solid ${TOKENS.border}` }}
               >
-                {["Company", "Status", "Plan", "Users", "Leads", "Joined"].map((h) => (
+                {["Company", "Status", "Plan", "Users", "Leads", "Joined", ""].map((h) => (
                   <div key={h} style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: TOKENS.textFaint }}>{h}</div>
                 ))}
               </div>
@@ -223,7 +259,7 @@ export default function AdminConsole() {
                       key={t.id}
                       className="grid items-center px-4"
                       style={{
-                        gridTemplateColumns: "2fr 1fr 1fr 0.8fr 0.8fr 1fr", gap: 12, padding: "10px 16px",
+                        gridTemplateColumns: "2fr 1fr 1fr 0.8fr 0.8fr 1fr 0.5fr", gap: 12, padding: "10px 16px",
                         background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8",
                         borderBottom: i < tenants.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
                       }}
@@ -249,6 +285,15 @@ export default function AdminConsole() {
                       <div style={{ fontSize: 12.5, color: TOKENS.textMuted }}>
                         {new Date(t.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
                       </div>
+                      <div>
+                        <button
+                          onClick={() => setWipeTarget(t)}
+                          title="Clear or delete this company's data"
+                          style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.riskBlocked, display: "flex" }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })
@@ -257,6 +302,77 @@ export default function AdminConsole() {
           </>
         )}
       </div>
+
+      {wipeTarget && (
+        <div
+          onClick={closeWipeDialog}
+          style={{ position: "fixed", inset: 0, background: "rgba(6,9,13,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 420, maxWidth: "90vw", background: TOKENS.surface, borderRadius: 10, padding: 24 }}
+          >
+            {wipeResult ? (
+              <>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>Done</div>
+                <p style={{ fontSize: 13, color: TOKENS.textMuted, marginBottom: 6 }}>
+                  Cleared {wipeTarget.name}'s data.{wipeResult.tenantDeleted ? " The company itself was also deleted." : ""}
+                </p>
+                <div style={{ fontSize: 11.5, color: TOKENS.textFaint, marginBottom: 16, lineHeight: 1.6 }}>
+                  {Object.entries(wipeResult.deletedCounts).filter(([, c]) => c > 0).map(([table, count]) => (
+                    <div key={table}>{table}: {count}</div>
+                  ))}
+                </div>
+                <button onClick={closeWipeDialog} style={{ width: "100%", background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  Close
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: TOKENS.riskBlocked }}>
+                  Clear data for {wipeTarget.name}?
+                </div>
+                <p style={{ fontSize: 12.5, color: TOKENS.textMuted, marginBottom: 14, lineHeight: 1.6 }}>
+                  This deletes every lead, sequence, webinar, and everything else belonging to this company. There's no undo. This does not affect their login — only their data.
+                </p>
+
+                <label className="flex items-center gap-2 mb-4" style={{ fontSize: 12.5, color: TOKENS.textPrimary, cursor: "pointer" }}>
+                  <input type="checkbox" checked={wipeAlsoDeleteTenant} onChange={(e) => setWipeAlsoDeleteTenant(e.target.checked)} />
+                  Also delete the company itself (not just its data)
+                </label>
+
+                <label style={{ fontSize: 11.5, color: TOKENS.textFaint, display: "block", marginBottom: 6 }}>
+                  Type <strong>{wipeTarget.name}</strong> to confirm
+                </label>
+                <input
+                  value={wipeConfirmText}
+                  onChange={(e) => setWipeConfirmText(e.target.value)}
+                  style={{ width: "100%", background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "8px 10px", fontSize: 13, color: TOKENS.textPrimary, marginBottom: 14 }}
+                />
+
+                {wipeError && <div style={{ color: TOKENS.riskBlocked, fontSize: 12.5, marginBottom: 12 }}>{wipeError}</div>}
+
+                <div className="flex gap-2">
+                  <button onClick={closeWipeDialog} style={{ flex: 1, background: "none", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "9px 0", fontSize: 13, cursor: "pointer" }}>
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleWipe}
+                    disabled={wiping || wipeConfirmText !== wipeTarget.name}
+                    style={{
+                      flex: 1, background: TOKENS.riskBlocked, color: "#FFFFFF", border: "none", borderRadius: 6,
+                      padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                      opacity: wiping || wipeConfirmText !== wipeTarget.name ? 0.5 : 1,
+                    }}
+                  >
+                    {wiping ? "Working…" : wipeAlsoDeleteTenant ? "Delete everything" : "Clear data"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
