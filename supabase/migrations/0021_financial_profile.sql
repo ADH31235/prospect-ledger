@@ -24,6 +24,15 @@ alter table leads add column if not exists pensions jsonb not null default '[]';
 alter table leads add column if not exists other_investments jsonb not null default '[]';
 alter table leads add column if not exists other_liabilities jsonb not null default '[]';
 
+-- Assets actually invested WITH the advisor (AUM under
+-- management) — directly entered, distinct from the sum of the
+-- categories above, which represents the client's total wealth
+-- picture rather than what's specifically managed here. For a
+-- prospect who isn't yet a client, this is legitimately
+-- null/zero — nothing invested here yet, even with plenty of
+-- wealth elsewhere.
+alter table leads add column if not exists portfolio_value numeric;
+
 alter table leads add column if not exists mortgage_value numeric;
 
 alter table leads add column if not exists annual_income numeric;

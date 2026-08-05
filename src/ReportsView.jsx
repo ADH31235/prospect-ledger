@@ -25,7 +25,7 @@ function sumValues(arr) {
   if (!Array.isArray(arr)) return 0;
   return arr.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
 }
-function getPortfolioValue(lead) {
+function getTotalAssets(lead) {
   return (
     sumValues(lead.bankAccounts) +
     sumValues(lead.properties) +
@@ -34,7 +34,7 @@ function getPortfolioValue(lead) {
   );
 }
 function getNetWorth(lead) {
-  return getPortfolioValue(lead) - (Number(lead.mortgageValue) || 0) - sumValues(lead.otherLiabilities);
+  return getTotalAssets(lead) - (Number(lead.mortgageValue) || 0) - sumValues(lead.otherLiabilities);
 }
 
 const PERIODS_PER_YEAR = { monthly: 12, quarterly: 4, annually: 1, one_off: 0 };
@@ -267,7 +267,7 @@ export default function ReportsView({ leads, jurisdictions }) {
     const pipelineValueByCurrency = filteredLeads
       .filter((l) => l.stage !== "disqualified")
       .reduce((acc, l) => {
-        const value = getPortfolioValue(l);
+        const value = l.portfolioValue;
         if (value) {
           const cur = l.currency || "GBP";
           acc[cur] = (acc[cur] ?? 0) + value;
@@ -753,6 +753,9 @@ export default function ReportsView({ leads, jurisdictions }) {
 function ClientsTab({ leads }) {
   const clients = leads.filter((l) => l.stage === "client");
 
+  const totalAUM = clients.reduce((sum, c) => sum + (Number(c.portfolioValue) || 0), 0);
+  const avgAUM = clients.length ? totalAUM / clients.length : 0;
+
   const totals = clients.reduce(
     (acc, c) => {
       acc.bankAccounts += sumValues(c.bankAccounts);
@@ -765,9 +768,8 @@ function ClientsTab({ leads }) {
     },
     { bankAccounts: 0, properties: 0, pensions: 0, otherInvestments: 0, mortgages: 0, otherLiabilities: 0 }
   );
-  const totalPortfolio = totals.bankAccounts + totals.properties + totals.pensions + totals.otherInvestments;
-  const totalNetWorth = totalPortfolio - totals.mortgages - totals.otherLiabilities;
-  const avgPortfolio = clients.length ? totalPortfolio / clients.length : 0;
+  const totalAssets = totals.bankAccounts + totals.properties + totals.pensions + totals.otherInvestments;
+  const totalNetWorth = totalAssets - totals.mortgages - totals.otherLiabilities;
 
   // Assumes a single currency across the book for this simple
   // summary — matches how the rest of the app currently treats
@@ -775,15 +777,15 @@ function ClientsTab({ leads }) {
   // baked into aggregate views yet).
   const currency = clients[0]?.currency ?? "GBP";
 
-  const sortedClients = [...clients].sort((a, b) => getPortfolioValue(b) - getPortfolioValue(a));
+  const sortedClients = [...clients].sort((a, b) => (b.portfolioValue || 0) - (a.portfolioValue || 0));
 
   return (
     <div>
       <div className="grid grid-cols-3 gap-px mb-6" style={{ background: TOKENS.border }}>
         {[
           { label: "Clients", value: clients.length },
-          { label: "Total portfolio value", value: formatMoney(totalPortfolio, currency) },
-          { label: "Total net worth", value: formatMoney(totalNetWorth, currency) },
+          { label: "Total AUM (portfolio value)", value: formatMoney(totalAUM, currency) },
+          { label: "Avg. AUM per client", value: formatMoney(avgAUM, currency) },
         ].map((s) => (
           <div key={s.label} style={{ background: TOKENS.surface, padding: "16px 18px" }}>
             <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>{s.label}</div>
@@ -793,37 +795,9 @@ function ClientsTab({ leads }) {
       </div>
 
       <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
-        Book breakdown by asset class
+        Clients by AUM
       </div>
-      <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", marginBottom: 32, background: TOKENS.surface }}>
-        {[
-          { label: "Bank accounts", value: totals.bankAccounts },
-          { label: "Properties", value: totals.properties },
-          { label: "Pensions", value: totals.pensions },
-          { label: "Other investments", value: totals.otherInvestments },
-          { label: "Mortgages (–)", value: totals.mortgages },
-          { label: "Other liabilities (–)", value: totals.otherLiabilities },
-        ].map((row) => {
-          const pct = totalPortfolio ? Math.round((row.value / totalPortfolio) * 100) : 0;
-          return (
-            <div key={row.label} className="flex items-center gap-3" style={{ marginBottom: 10 }}>
-              <div style={{ width: 140, fontSize: 12, color: TOKENS.textMuted, flexShrink: 0 }}>{row.label}</div>
-              <div style={{ flex: 1, background: TOKENS.surfaceRaised, borderRadius: 4, height: 16 }}>
-                <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: "#4C8FDB", borderRadius: 4 }} />
-              </div>
-              <div style={{ width: 110, textAlign: "right", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>{formatMoney(row.value, currency)}</div>
-            </div>
-          );
-        })}
-        <div style={{ fontSize: 11.5, color: TOKENS.textFaint, marginTop: 8 }}>
-          Average portfolio per client: {formatMoney(avgPortfolio, currency)}
-        </div>
-      </div>
-
-      <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
-        Clients by portfolio value
-      </div>
-      <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
+      <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface, marginBottom: 32 }}>
         {sortedClients.length === 0 ? (
           <div style={{ padding: 24, color: TOKENS.textFaint, fontSize: 13, textAlign: "center" }}>No clients yet.</div>
         ) : (
@@ -834,10 +808,48 @@ function ClientsTab({ leads }) {
               style={{ background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8", borderBottom: i < sortedClients.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none" }}
             >
               <span style={{ fontSize: 13 }}>{c.name}</span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>{formatMoney(getPortfolioValue(c), c.currency)}</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>{formatMoney(c.portfolioValue, c.currency)}</span>
             </div>
           ))
         )}
+      </div>
+
+      <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+        Whole-wealth context (not AUM)
+      </div>
+      <p style={{ fontSize: 11.5, color: TOKENS.textFaint, marginBottom: 12 }}>
+        The client's total financial picture across everything logged in their Financial Profile — useful for context, but distinct from what's actually under management above.
+      </p>
+      <div className="grid grid-cols-2 gap-px mb-4" style={{ background: TOKENS.border }}>
+        <div style={{ background: TOKENS.surface, padding: "14px 18px" }}>
+          <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Total assets (book-wide)</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18 }}>{formatMoney(totalAssets, currency)}</div>
+        </div>
+        <div style={{ background: TOKENS.surface, padding: "14px 18px" }}>
+          <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Total net worth (book-wide)</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18 }}>{formatMoney(totalNetWorth, currency)}</div>
+        </div>
+      </div>
+      <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", background: TOKENS.surface }}>
+        {[
+          { label: "Bank accounts", value: totals.bankAccounts },
+          { label: "Properties", value: totals.properties },
+          { label: "Pensions", value: totals.pensions },
+          { label: "Other investments", value: totals.otherInvestments },
+          { label: "Mortgages (–)", value: totals.mortgages },
+          { label: "Other liabilities (–)", value: totals.otherLiabilities },
+        ].map((row) => {
+          const pct = totalAssets ? Math.round((row.value / totalAssets) * 100) : 0;
+          return (
+            <div key={row.label} className="flex items-center gap-3" style={{ marginBottom: 10 }}>
+              <div style={{ width: 140, fontSize: 12, color: TOKENS.textMuted, flexShrink: 0 }}>{row.label}</div>
+              <div style={{ flex: 1, background: TOKENS.surfaceRaised, borderRadius: 4, height: 16 }}>
+                <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: "#4C8FDB", borderRadius: 4 }} />
+              </div>
+              <div style={{ width: 110, textAlign: "right", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>{formatMoney(row.value, currency)}</div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

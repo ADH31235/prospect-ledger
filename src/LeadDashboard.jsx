@@ -142,10 +142,13 @@ function sumValues(arr) {
   return arr.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
 }
 
-// Portfolio value = every asset category added together. Not
-// stored — always computed live from its components, so it can
-// never drift out of sync with them.
-function getPortfolioValue(lead) {
+// Total assets = every logged asset category added together —
+// the client's whole wealth picture, distinct from portfolio_value
+// (a separate, directly-entered field representing only what's
+// actually invested with the advisor). Not stored — always
+// computed live from its components, so it can never drift out
+// of sync with them.
+function getTotalAssets(lead) {
   return (
     sumValues(lead.bankAccounts) +
     sumValues(lead.properties) +
@@ -154,10 +157,10 @@ function getPortfolioValue(lead) {
   );
 }
 
-// Net worth = portfolio value minus everything owed — the
-// mortgage plus any other logged liabilities.
+// Net worth = total assets minus everything owed — the mortgage
+// plus any other logged liabilities.
 function getNetWorth(lead) {
-  return getPortfolioValue(lead) - (Number(lead.mortgageValue) || 0) - sumValues(lead.otherLiabilities);
+  return getTotalAssets(lead) - (Number(lead.mortgageValue) || 0) - sumValues(lead.otherLiabilities);
 }
 
 const PERIODS_PER_YEAR = { monthly: 12, quarterly: 4, annually: 1, one_off: 0 };
@@ -440,6 +443,7 @@ export default function LeadDashboard({
       pensions: selected.pensions || [],
       other_investments: selected.otherInvestments || [],
       other_liabilities: selected.otherLiabilities || [],
+      portfolio_value: selected.portfolioValue ?? "",
       mortgage_value: selected.mortgageValue ?? "",
       annual_income: selected.annualIncome ?? "",
       annual_expenditure: selected.annualExpenditure ?? "",
@@ -502,14 +506,7 @@ export default function LeadDashboard({
         fee_amount: detailsDraft.fee_amount === "" ? null : Number(detailsDraft.fee_amount),
         next_fee_review_date: detailsDraft.next_fee_review_date || null,
         fee_start_date: detailsDraft.fee_start_date || null,
-        // Kept in sync automatically — this used to be a manually
-        // typed figure with no connection to the actual breakdown
-        // below it, which is exactly why it was confusing. Now it's
-        // always just whatever the Financial Profile adds up to.
-        estimated_investable_assets: getPortfolioValue({
-          bankAccounts: detailsDraft.bank_accounts, properties: detailsDraft.properties,
-          pensions: detailsDraft.pensions, otherInvestments: detailsDraft.other_investments,
-        }),
+        portfolio_value: detailsDraft.portfolio_value === "" ? null : Number(detailsDraft.portfolio_value),
       };
       if (onUpdateDetails) await onUpdateDetails(selected.id, payload);
       // Deliberately stays in edit mode — closing back to read-only
@@ -566,7 +563,7 @@ export default function LeadDashboard({
     rows.sort((a, b) => {
       let av, bv;
       if (sortKey === "score") { av = a.score; bv = b.score; }
-      else if (sortKey === "assets") { av = getPortfolioValue(a); bv = getPortfolioValue(b); }
+      else if (sortKey === "assets") { av = a.portfolioValue ?? -1; bv = b.portfolioValue ?? -1; }
       else if (sortKey === "name") { av = a.name; bv = b.name; }
       else if (sortKey === "jurisdiction") {
         av = getJurisdiction(jurisdictions, a.jurisdiction).country || "";
@@ -609,7 +606,7 @@ export default function LeadDashboard({
     const pipelineAssetsByCurrency = filtered
       .filter((l) => l.stage !== "disqualified")
       .reduce((acc, l) => {
-        const value = getPortfolioValue(l);
+        const value = l.portfolioValue;
         if (value) {
           const cur = l.currency || "GBP";
           acc[cur] = (acc[cur] ?? 0) + value;
@@ -1308,7 +1305,7 @@ export default function LeadDashboard({
                   </span>
                 </div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
-                  {formatMoney(getPortfolioValue(lead), lead.currency)}
+                  {formatMoney(lead.portfolioValue, lead.currency)}
                 </div>
                 <ScoreBar score={lead.score} />
                 <div style={{ fontSize: 12.5, color: TOKENS.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
@@ -1445,7 +1442,8 @@ export default function LeadDashboard({
                   ["Co. of residence", selected.countryOfResidence || "—"],
                   ["ID/Passport No.", selected.idPassportNumber || "—"],
                   ["Home address", selected.homeAddress || "—"],
-                  ["Portfolio value", formatMoney(getPortfolioValue(selected), selected.currency)],
+                  ["Portfolio value", formatMoney(selected.portfolioValue, selected.currency)],
+                  ["Total assets", formatMoney(getTotalAssets(selected), selected.currency)],
                   ["Net worth", formatMoney(getNetWorth(selected), selected.currency)],
                   ["Bank accounts", selected.bankAccounts?.length ? `${selected.bankAccounts.length} (${formatMoney(sumValues(selected.bankAccounts), selected.currency)})` : "—"],
                   ["Properties", selected.properties?.length ? `${selected.properties.length} (${formatMoney(sumValues(selected.properties), selected.currency)})` : "—"],
@@ -1627,6 +1625,18 @@ export default function LeadDashboard({
                           Financial profile
                         </div>
 
+                        <div style={{ background: TOKENS.surface, borderRadius: 6, padding: 12, marginBottom: 16 }}>
+                          <label style={labelStyle}>Portfolio value</label>
+                          <input
+                            type="number" style={inputStyle} value={detailsDraft.portfolio_value}
+                            onChange={(e) => dset("portfolio_value", e.target.value)}
+                            placeholder="0"
+                          />
+                          <div style={{ fontSize: 11, color: TOKENS.textFaint, marginTop: 4 }}>
+                            Assets actually invested with you — this is what drives the Ledger and Pipeline figures, not the total-wealth breakdown below.
+                          </div>
+                        </div>
+
                         <label style={labelStyle}>Bank accounts</label>
                         <RepeatableValueList
                           items={detailsDraft.bank_accounts} onChange={(v) => dset("bank_accounts", v)}
@@ -1703,9 +1713,9 @@ export default function LeadDashboard({
 
                         <div className="flex items-center justify-between" style={{ marginTop: 14, padding: "10px 12px", background: TOKENS.surface, borderRadius: 6 }}>
                           <div>
-                            <div style={{ fontSize: 11, color: TOKENS.textFaint }}>Portfolio value</div>
+                            <div style={{ fontSize: 11, color: TOKENS.textFaint }}>Total assets</div>
                             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15 }}>
-                              {formatMoney(getPortfolioValue({
+                              {formatMoney(getTotalAssets({
                                 bankAccounts: detailsDraft.bank_accounts, properties: detailsDraft.properties,
                                 pensions: detailsDraft.pensions, otherInvestments: detailsDraft.other_investments,
                               }), detailsDraft.currency)}

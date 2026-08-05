@@ -48,6 +48,7 @@ function mapRow(row: any) {
     pensions: row.pensions ?? [],
     otherInvestments: row.other_investments ?? [],
     otherLiabilities: row.other_liabilities ?? [],
+    portfolioValue: row.portfolio_value ?? null,
     mortgageValue: row.mortgage_value ?? null,
     annualIncome: row.annual_income ?? null,
     annualExpenditure: row.annual_expenditure ?? null,
