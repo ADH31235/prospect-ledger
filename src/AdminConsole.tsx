@@ -17,6 +17,7 @@ export default function AdminConsole() {
   const [wipeTarget, setWipeTarget] = useState(null);
   const [wipeConfirmText, setWipeConfirmText] = useState("");
   const [wipeAlsoDeleteTenant, setWipeAlsoDeleteTenant] = useState(false);
+  const [wipeCategories, setWipeCategories] = useState(["leads"]);
   const [wiping, setWiping] = useState(false);
   const [wipeError, setWipeError] = useState("");
   const [wipeResult, setWipeResult] = useState(null);
@@ -65,6 +66,7 @@ export default function AdminConsole() {
           tenant_id: wipeTarget.id,
           tenant_name_confirmation: wipeConfirmText,
           also_delete_tenant: wipeAlsoDeleteTenant,
+          categories: wipeCategories,
         },
       });
       if (error) throw error;
@@ -81,6 +83,7 @@ export default function AdminConsole() {
     setWipeTarget(null);
     setWipeConfirmText("");
     setWipeAlsoDeleteTenant(false);
+    setWipeCategories(["leads"]);
     setWipeError("");
     setWipeResult(null);
   }
@@ -333,13 +336,46 @@ export default function AdminConsole() {
                   Clear data for {wipeTarget.name}?
                 </div>
                 <p style={{ fontSize: 12.5, color: TOKENS.textMuted, marginBottom: 14, lineHeight: 1.6 }}>
-                  This deletes every lead, sequence, webinar, and everything else belonging to this company. There's no undo. This does not affect their login — only their data.
+                  There's no undo. This never touches jurisdictions, sequence templates, or webinar events themselves — only the data below.
                 </p>
 
-                <label className="flex items-center gap-2 mb-4" style={{ fontSize: 12.5, color: TOKENS.textPrimary, cursor: "pointer" }}>
-                  <input type="checkbox" checked={wipeAlsoDeleteTenant} onChange={(e) => setWipeAlsoDeleteTenant(e.target.checked)} />
-                  Also delete the company itself (not just its data)
+                <label className="flex items-center gap-2 mb-3" style={{ fontSize: 12.5, color: TOKENS.textPrimary, cursor: "pointer" }}>
+                  <input
+                    type="checkbox" checked={wipeAlsoDeleteTenant}
+                    onChange={(e) => setWipeAlsoDeleteTenant(e.target.checked)}
+                  />
+                  Also delete the company itself, and everything in it
                 </label>
+
+                {!wipeAlsoDeleteTenant && (
+                  <div style={{ background: TOKENS.surfaceRaised, borderRadius: 6, padding: 12, marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                      What to clear
+                    </div>
+                    {[
+                      { key: "leads", label: "Leads & pipeline", sub: "leads, stage history, sequence enrollments" },
+                      { key: "deal_signals", label: "Deal signals" },
+                      { key: "newsletter_subscribers", label: "Newsletter subscribers" },
+                      { key: "webinar_registrations", label: "Webinar registrations", sub: "keeps the events themselves" },
+                      { key: "content_pieces", label: "Content library entries" },
+                    ].map((c) => (
+                      <label key={c.key} className="flex items-start gap-2" style={{ fontSize: 12.5, color: TOKENS.textPrimary, cursor: "pointer", marginBottom: 8 }}>
+                        <input
+                          type="checkbox" checked={wipeCategories.includes(c.key)} style={{ marginTop: 2 }}
+                          onChange={(e) => {
+                            setWipeCategories((prev) =>
+                              e.target.checked ? [...prev, c.key] : prev.filter((k) => k !== c.key)
+                            );
+                          }}
+                        />
+                        <span>
+                          {c.label}
+                          {c.sub && <span style={{ color: TOKENS.textFaint }}> — {c.sub}</span>}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
 
                 <label style={{ fontSize: 11.5, color: TOKENS.textFaint, display: "block", marginBottom: 6 }}>
                   Type <strong>{wipeTarget.name}</strong> to confirm
@@ -358,14 +394,14 @@ export default function AdminConsole() {
                   </button>
                   <button
                     onClick={handleWipe}
-                    disabled={wiping || wipeConfirmText !== wipeTarget.name}
+                    disabled={wiping || wipeConfirmText !== wipeTarget.name || (!wipeAlsoDeleteTenant && wipeCategories.length === 0)}
                     style={{
                       flex: 1, background: TOKENS.riskBlocked, color: "#FFFFFF", border: "none", borderRadius: 6,
                       padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                      opacity: wiping || wipeConfirmText !== wipeTarget.name ? 0.5 : 1,
+                      opacity: wiping || wipeConfirmText !== wipeTarget.name || (!wipeAlsoDeleteTenant && wipeCategories.length === 0) ? 0.5 : 1,
                     }}
                   >
-                    {wiping ? "Working…" : wipeAlsoDeleteTenant ? "Delete everything" : "Clear data"}
+                    {wiping ? "Working…" : wipeAlsoDeleteTenant ? "Delete everything" : "Clear selected"}
                   </button>
                 </div>
               </>

@@ -2,17 +2,25 @@
 // profiles.is_platform_admin = true, same gate as admin-overview.
 // Deploy with: supabase functions deploy wipe-tenant-data
 //
-// This is genuinely destructive and irreversible — there's no undo.
-// It's built as a deliberate, explicitly-triggered tool (you have
-// to call it on purpose, with the exact tenant name typed as
-// confirmation on the frontend) rather than anything automatic.
+// Deliberately category-based, not all-or-nothing — clearing out
+// dummy test leads shouldn't force you to also lose real
+// configuration work (jurisdictions, sequence templates, webinar
+// events themselves). Each category is independently selectable.
 //
-// Deletes every row belonging to a tenant across every
-// tenant-scoped table, in child-to-parent order so foreign keys
-// never block the delete. Does NOT delete Supabase auth accounts —
-// only the tenant's data and (optionally) the tenant/profile link
-// itself. A user whose tenant gets fully deleted keeps their login,
-// they'd just be asked to set up a new company on next sign-in.
+// Categories never touch: jurisdictions, sequences/steps/templates,
+// scoring_criteria, licenses, webinars (the events), newsletter_issues,
+// or jurisdiction-only compliance_reviews (lead_id null) — all of
+// that is configuration and audit history, not "data."
+//
+// Cascade rules already do most of the work: deleting a lead
+// automatically cleans up its stage history, outreach log, and
+// sequence enrollments (all ON DELETE CASCADE), and safely
+// *unlinks* rather than deletes newsletter subscribers, webinar
+// registrations, and deal-signal conversions (all ON DELETE SET
+// NULL, fixed back in migration 0008). The one exception —
+// compliance_reviews.lead_id has no cascade — is handled
+// explicitly below before leads are deleted, so it doesn't block
+// anything.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -28,7 +36,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const TABLES_IN_ORDER = [
+const ALL_TENANT_TABLES_IN_ORDER = [
   "scheduled_sends",
   "sequence_enrollments",
   "template_approvals",
@@ -81,7 +89,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { tenant_id, tenant_name_confirmation, also_delete_tenant } = await req.json();
+    const { tenant_id, tenant_name_confirmation, categories, also_delete_tenant } = await req.json();
     if (!tenant_id) {
       return new Response(JSON.stringify({ error: "tenant_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -102,19 +110,51 @@ Deno.serve(async (req) => {
     }
 
     const deletedCounts: Record<string, number> = {};
-    for (const table of TABLES_IN_ORDER) {
+
+    async function deleteFrom(table: string) {
       const { error, count } = await adminClient
         .from(table)
         .delete({ count: "exact" })
         .eq("tenant_id", tenant_id);
       if (error) throw new Error(`Failed deleting from ${table}: ${error.message}`);
-      deletedCounts[table] = count ?? 0;
+      deletedCounts[table] = (deletedCounts[table] ?? 0) + (count ?? 0);
     }
 
     if (also_delete_tenant) {
+      // Deleting the whole company — every table goes, regardless
+      // of which categories were checked, since leaving orphaned
+      // configuration behind for a company that no longer exists
+      // wouldn't make sense.
+      for (const table of ALL_TENANT_TABLES_IN_ORDER) {
+        await deleteFrom(table);
+      }
       await adminClient.from("profiles").delete().eq("tenant_id", tenant_id);
       const { error: tenantErr } = await adminClient.from("tenants").delete().eq("id", tenant_id);
       if (tenantErr) throw new Error(`Failed deleting tenant: ${tenantErr.message}`);
+    } else {
+      // Selective clear — only the categories actually checked.
+      if (!Array.isArray(categories) || categories.length === 0) {
+        return new Response(JSON.stringify({ error: "Select at least one category" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (categories.includes("leads")) {
+        const { error, count } = await adminClient
+          .from("compliance_reviews")
+          .delete({ count: "exact" })
+          .eq("tenant_id", tenant_id)
+          .not("lead_id", "is", null);
+        if (error) throw new Error(`Failed deleting compliance_reviews: ${error.message}`);
+        deletedCounts["compliance_reviews (lead-specific only)"] = count ?? 0;
+
+        await deleteFrom("leads");
+      }
+
+      if (categories.includes("deal_signals")) await deleteFrom("deal_signals");
+      if (categories.includes("newsletter_subscribers")) await deleteFrom("newsletter_subscribers");
+      if (categories.includes("webinar_registrations")) await deleteFrom("webinar_registrations");
+      if (categories.includes("content_pieces")) await deleteFrom("content_pieces");
     }
 
     return new Response(JSON.stringify({ ok: true, deletedCounts, tenantDeleted: !!also_delete_tenant }), {
