@@ -448,7 +448,7 @@ export default function LeadDashboard({
         <div className="flex items-baseline justify-between border-b pb-5 mb-6" style={{ borderColor: TOKENS.border }}>
           <div>
             <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 30, letterSpacing: "-0.01em", color: TOKENS.white }}>
-              Prospect Ledger
+              Trivara Hub
             </h1>
           </div>
           <div className="flex items-center gap-4">
