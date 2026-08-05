@@ -15,6 +15,7 @@ import BillingTab from "./BillingTab";
 import AdminConsole from "./AdminConsole";
 import { useIsPlatformAdmin } from "./useIsPlatformAdmin";
 import SignupPage from "./SignupPage";
+import ResetPasswordPage from "./ResetPasswordPage";
 import SubscribePage from "./SubscribePage";
 import InquirePage from "./InquirePage";
 import NewsletterActionPage from "./NewsletterActionPage";
@@ -150,6 +151,7 @@ export default function App() {
       <Route path="/inquire" element={<InquirePage />} />
       <Route path="/webinar" element={<WebinarSignupPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/newsletter-action" element={<NewsletterActionPage />} />
       {/* Everything else requires login */}
       <Route path="*" element={<ProtectedApp />} />
