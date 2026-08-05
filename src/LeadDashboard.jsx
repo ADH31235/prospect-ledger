@@ -721,7 +721,7 @@ export default function LeadDashboard({
           </div>
           <div className="flex items-center gap-4">
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TOKENS.ivory, textAlign: "right" }}>
-              as of {formatDate("2026-07-31")}
+              as of {formatDate(new Date().toISOString())}
             </div>
             <button
               onClick={async () => {
