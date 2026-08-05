@@ -119,7 +119,7 @@ export default function AdminConsole() {
               </div>
             </div>
 
-            {kpis?.mrr?.length > 0 && (
+            {kpis?.mrr?.length > 1 && (
               <div style={{ background: TOKENS.surface, borderRadius: 10, padding: 16, marginBottom: 24 }}>
                 <div style={{ fontSize: 12, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
                   {kpis.mrr.length > 1 ? "Combined total — manual exchange rates" : "Revenue currency"}

@@ -185,18 +185,18 @@ export default function ComplianceReview() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6" style={{ borderBottom: `1px solid ${TOKENS.border}` }}>
+        <div className="flex gap-2 mb-6">
           {TABS.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               onClick={() => setTab(key)}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
-                background: "none", border: "none", cursor: "pointer",
-                padding: "9px 14px", fontSize: 13,
-                color: TOKENS.ivory,
-                borderBottom: tab === key ? `2px solid ${TOKENS.riskReview}` : "2px solid transparent",
-                marginBottom: -1,
+                background: tab === key ? TOKENS.surface : "none",
+                border: tab === key ? `1px solid ${TOKENS.border}` : "1px solid transparent",
+                borderRadius: 6, cursor: "pointer",
+                padding: "8px 14px", fontSize: 13,
+                color: tab === key ? TOKENS.textPrimary : TOKENS.ivory,
               }}
             >
               <Icon size={14} /> {label}

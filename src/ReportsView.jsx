@@ -187,9 +187,6 @@ export default function ReportsView({ leads, jurisdictions }) {
           <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 28, color: TOKENS.white }}>
             Reports
           </h1>
-          <p style={{ color: TOKENS.ivory, fontSize: 13, marginTop: 2 }}>
-            Current snapshot, historical funnel, and recent stage-change activity — tracked automatically from here on.
-          </p>
         </div>
 
         <div className="grid grid-cols-5 gap-px mb-8" style={{ background: TOKENS.border }}>
@@ -212,7 +209,7 @@ export default function ReportsView({ leads, jurisdictions }) {
         <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
           Stage funnel
         </div>
-        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "18px 20px", marginBottom: 32 }}>
+        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "18px 20px", marginBottom: 32, background: TOKENS.surface }}>
           {STAGE_ORDER.map((stage) => {
             const count = stats.stageCounts[stage] ?? 0;
             const pct = leads.length ? Math.round((count / leads.length) * 100) : 0;
@@ -239,13 +236,10 @@ export default function ReportsView({ leads, jurisdictions }) {
           )}
         </div>
 
-        <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+        <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
           Historical funnel — ever reached this stage
         </div>
-        <p style={{ fontSize: 11.5, color: TOKENS.textFaint, marginBottom: 12 }}>
-          Unlike the snapshot above, this counts anyone who ever touched a stage — even if they later moved on or were disqualified. Builds up as stage changes happen from here on.
-        </p>
-        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "18px 20px", marginBottom: 32 }}>
+        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "18px 20px", marginBottom: 32, background: TOKENS.surface }}>
           {historyLoading ? (
             <div style={{ fontSize: 12.5, color: TOKENS.textFaint }}>Loading…</div>
           ) : (
@@ -273,7 +267,7 @@ export default function ReportsView({ leads, jurisdictions }) {
         <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
           New prospects per week
         </div>
-        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "20px 20px 12px", marginBottom: 32 }}>
+        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "20px 20px 12px", marginBottom: 32, background: TOKENS.surface }}>
           <div className="flex items-end gap-1.5" style={{ height: 120 }}>
             {weekly.map((w, i) => (
               <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
@@ -300,7 +294,7 @@ export default function ReportsView({ leads, jurisdictions }) {
             <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
               By source
             </div>
-            <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px" }}>
+            <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", background: TOKENS.surface }}>
               {topSources.length === 0 ? (
                 <div style={{ fontSize: 12.5, color: TOKENS.textFaint }}>No prospects yet.</div>
               ) : (
@@ -323,7 +317,7 @@ export default function ReportsView({ leads, jurisdictions }) {
             <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
               By jurisdiction
             </div>
-            <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px" }}>
+            <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", background: TOKENS.surface }}>
               {topJurisdictions.length === 0 ? (
                 <div style={{ fontSize: 12.5, color: TOKENS.textFaint }}>No prospects yet.</div>
               ) : (
@@ -346,7 +340,7 @@ export default function ReportsView({ leads, jurisdictions }) {
             <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
               By ad campaign
             </div>
-            <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", marginBottom: 32 }}>
+            <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", marginBottom: 32, background: TOKENS.surface }}>
               {topCampaigns.map(([campaign, count]) => (
                 <div key={campaign} className="flex items-center gap-3" style={{ marginBottom: 10 }}>
                   <div style={{ width: 220, fontSize: 12, color: TOKENS.textMuted, flexShrink: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -367,7 +361,7 @@ export default function ReportsView({ leads, jurisdictions }) {
             <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
               By content piece
             </div>
-            <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", marginBottom: 32 }}>
+            <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", marginBottom: 32, background: TOKENS.surface }}>
               {topContent.map(([slug, count]) => {
                 const piece = contentBySlug[slug];
                 return (

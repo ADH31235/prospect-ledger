@@ -217,8 +217,24 @@ export default function LeadDashboard({
   const [showAddLead, setShowAddLead] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
-  const [assetsDisplayCurrency, setAssetsDisplayCurrency] = useState("GBP");
-  const [assetsManualRates, setAssetsManualRates] = useState({});
+  const [assetsDisplayCurrency, setAssetsDisplayCurrency] = useState(
+    () => localStorage.getItem("ledger_assets_display_currency") || "GBP"
+  );
+  const [assetsManualRates, setAssetsManualRates] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("ledger_assets_manual_rates") || "{}");
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("ledger_assets_display_currency", assetsDisplayCurrency);
+  }, [assetsDisplayCurrency]);
+
+  useEffect(() => {
+    localStorage.setItem("ledger_assets_manual_rates", JSON.stringify(assetsManualRates));
+  }, [assetsManualRates]);
   const [selectedForBulk, setSelectedForBulk] = useState(() => new Set());
   const [bulkJurisdictionId, setBulkJurisdictionId] = useState("");
   const [bulkWorking, setBulkWorking] = useState(false);
