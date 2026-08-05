@@ -325,6 +325,14 @@ export default function LeadDashboard({
         liquidity_event_date: detailsDraft.liquidity_event_date || null,
         next_follow_up_date: detailsDraft.next_follow_up_date || null,
         date_of_birth: detailsDraft.date_of_birth || null,
+        // These are number/date columns — an empty string isn't a
+        // valid value for either, and Postgres rejects the entire
+        // update (not just this field) if one sneaks through. This
+        // was silently losing every other change made in the same
+        // save, with no error shown.
+        number_of_children: detailsDraft.number_of_children === "" ? null : Number(detailsDraft.number_of_children),
+        current_provider_start_date: detailsDraft.current_provider_start_date || null,
+        current_provider_maturity_date: detailsDraft.current_provider_maturity_date || null,
       };
       if (onUpdateDetails) await onUpdateDetails(selected.id, payload);
       // Deliberately stays in edit mode — closing back to read-only
@@ -333,6 +341,10 @@ export default function LeadDashboard({
       // via the drawer's own close button or "Done editing" below.
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 2000);
+    } catch (err) {
+      // Previously uncaught — a failed save produced no error and
+      // no visible sign anything had gone wrong.
+      alert(`Couldn't save: ${err?.message ?? err}`);
     } finally {
       setSavingDetails(false);
     }
