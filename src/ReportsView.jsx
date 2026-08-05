@@ -69,6 +69,32 @@ export default function ReportsView({ leads, jurisdictions }) {
     }
   });
 
+  const [dateRange, setDateRange] = useState("all");
+  const [jurisdictionFilter, setJurisdictionFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+
+  const filteredLeads = useMemo(() => {
+    let result = leads;
+    if (dateRange !== "all") {
+      const days = parseInt(dateRange, 10);
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      result = result.filter((l) => l.createdAt && new Date(l.createdAt) >= cutoff);
+    }
+    if (jurisdictionFilter !== "all") {
+      result = result.filter((l) => {
+        const j = jurisdictions?.[l.jurisdiction];
+        return (j?.country ?? "Not set") === jurisdictionFilter;
+      });
+    }
+    if (sourceFilter !== "all") {
+      result = result.filter((l) => (l.source || "unknown") === sourceFilter);
+    }
+    return result;
+  }, [leads, jurisdictions, dateRange, jurisdictionFilter, sourceFilter]);
+
+  const filteredLeadIds = useMemo(() => new Set(filteredLeads.map((l) => l.id)), [filteredLeads]);
+
 
   useEffect(() => {
     supabase.from("content_pieces").select("slug, title, content_type").then(({ data }) => {
@@ -98,12 +124,13 @@ export default function ReportsView({ leads, jurisdictions }) {
     const reached = {};
     for (const stage of STAGE_ORDER) reached[stage] = new Set();
     for (const row of allHistory) {
+      if (!filteredLeadIds.has(row.lead_id)) continue;
       if (reached[row.to_stage]) reached[row.to_stage].add(row.lead_id);
     }
     const counts = {};
     for (const stage of STAGE_ORDER) counts[stage] = reached[stage].size;
     return counts;
-  }, [allHistory]);
+  }, [allHistory, filteredLeadIds]);
 
   // Average days from a lead's first "new" entry to its first
   // "qualified" or "client" entry, across leads that have reached
@@ -112,6 +139,7 @@ export default function ReportsView({ leads, jurisdictions }) {
     const firstNewByLead = {};
     const firstQualifiedByLead = {};
     for (const row of allHistory) {
+      if (!filteredLeadIds.has(row.lead_id)) continue;
       if (row.to_stage === "new" && !firstNewByLead[row.lead_id]) {
         firstNewByLead[row.lead_id] = new Date(row.changed_at);
       }
@@ -128,7 +156,7 @@ export default function ReportsView({ leads, jurisdictions }) {
     }
     if (!diffs.length) return null;
     return Math.round(diffs.reduce((a, b) => a + b, 0) / diffs.length);
-  }, [allHistory]);
+  }, [allHistory, filteredLeadIds]);
 
   function timeAgo(dateStr) {
     const diffMs = Date.now() - new Date(dateStr).getTime();
@@ -143,34 +171,38 @@ export default function ReportsView({ leads, jurisdictions }) {
   const stats = useMemo(() => {
     const stageCounts = {};
     for (const stage of [...STAGE_ORDER, "disqualified", "do_not_contact"]) stageCounts[stage] = 0;
-    for (const l of leads) stageCounts[l.stage] = (stageCounts[l.stage] ?? 0) + 1;
+    for (const l of filteredLeads) stageCounts[l.stage] = (stageCounts[l.stage] ?? 0) + 1;
 
     const sourceCounts = {};
-    for (const l of leads) {
+    const sourceQualified = {};
+    for (const l of filteredLeads) {
       const s = l.source || "unknown";
       sourceCounts[s] = (sourceCounts[s] ?? 0) + 1;
+      if (l.stage === "qualified" || l.stage === "client") sourceQualified[s] = (sourceQualified[s] ?? 0) + 1;
     }
 
     const jurisdictionCounts = {};
-    for (const l of leads) {
+    const jurisdictionQualified = {};
+    for (const l of filteredLeads) {
       const j = jurisdictions?.[l.jurisdiction];
       const label = j?.country ?? "Not set";
       jurisdictionCounts[label] = (jurisdictionCounts[label] ?? 0) + 1;
+      if (l.stage === "qualified" || l.stage === "client") jurisdictionQualified[label] = (jurisdictionQualified[label] ?? 0) + 1;
     }
 
     const campaignCounts = {};
-    for (const l of leads) {
+    for (const l of filteredLeads) {
       const campaign = l.adTracking?.campaign_name;
       if (campaign) campaignCounts[campaign] = (campaignCounts[campaign] ?? 0) + 1;
     }
 
     const contentCounts = {};
-    for (const l of leads) {
+    for (const l of filteredLeads) {
       const slug = l.adTracking?.utm_content;
       if (slug) contentCounts[slug] = (contentCounts[slug] ?? 0) + 1;
     }
 
-    const pipelineValueByCurrency = leads
+    const pipelineValueByCurrency = filteredLeads
       .filter((l) => l.stage !== "disqualified")
       .reduce((acc, l) => {
         if (l.assets) {
@@ -180,17 +212,58 @@ export default function ReportsView({ leads, jurisdictions }) {
         return acc;
       }, {});
 
-    const avgScore = leads.length
-      ? Math.round(leads.reduce((sum, l) => sum + (l.score ?? 0), 0) / leads.length)
+    const avgScore = filteredLeads.length
+      ? Math.round(filteredLeads.reduce((sum, l) => sum + (l.score ?? 0), 0) / filteredLeads.length)
       : 0;
 
     const qualifiedOrClient = (stageCounts.qualified ?? 0) + (stageCounts.client ?? 0);
-    const conversionRate = leads.length ? Math.round((qualifiedOrClient / leads.length) * 100) : 0;
+    const conversionRate = filteredLeads.length ? Math.round((qualifiedOrClient / filteredLeads.length) * 100) : 0;
 
-    return { stageCounts, sourceCounts, jurisdictionCounts, campaignCounts, contentCounts, pipelineValueByCurrency, avgScore, conversionRate };
-  }, [leads, jurisdictions]);
+    // Score distribution — five equal buckets across the 0-100
+    // range. Useful for sanity-checking whether the scoring model
+    // is actually spreading leads out, or bunching everyone into
+    // one band.
+    const scoreBuckets = { "0-20": 0, "21-40": 0, "41-60": 0, "61-80": 0, "81-100": 0 };
+    for (const l of filteredLeads) {
+      const s = l.score ?? 0;
+      if (s <= 20) scoreBuckets["0-20"]++;
+      else if (s <= 40) scoreBuckets["21-40"]++;
+      else if (s <= 60) scoreBuckets["41-60"]++;
+      else if (s <= 80) scoreBuckets["61-80"]++;
+      else scoreBuckets["81-100"]++;
+    }
 
-  const weekly = useMemo(() => weeklyBuckets(leads), [leads]);
+    return {
+      stageCounts, sourceCounts, sourceQualified, jurisdictionCounts, jurisdictionQualified,
+      campaignCounts, contentCounts, pipelineValueByCurrency, avgScore, conversionRate, scoreBuckets,
+    };
+  }, [filteredLeads, jurisdictions]);
+
+  // Stage velocity — average days spent between consecutive stage
+  // transitions, computed per lead then averaged. Only counts
+  // history entries for leads that pass the current filter, so
+  // this stays consistent with everything else on the page.
+  const stageVelocity = useMemo(() => {
+    const byLead = {};
+    for (const row of allHistory) {
+      if (!filteredLeadIds.has(row.lead_id)) continue;
+      (byLead[row.lead_id] ??= []).push(row);
+    }
+    const transitionDiffs = {};
+    for (const rows of Object.values(byLead)) {
+      const sorted = [...rows].sort((a, b) => new Date(a.changed_at) - new Date(b.changed_at));
+      for (let i = 1; i < sorted.length; i++) {
+        const key = `${sorted[i - 1].to_stage} → ${sorted[i].to_stage}`;
+        const days = (new Date(sorted[i].changed_at) - new Date(sorted[i - 1].changed_at)) / (1000 * 60 * 60 * 24);
+        if (days >= 0) (transitionDiffs[key] ??= []).push(days);
+      }
+    }
+    return Object.entries(transitionDiffs)
+      .map(([key, diffs]) => ({ key, avgDays: Math.round(diffs.reduce((a, b) => a + b, 0) / diffs.length), count: diffs.length }))
+      .sort((a, b) => b.count - a.count);
+  }, [allHistory, filteredLeadIds]);
+
+  const weekly = useMemo(() => weeklyBuckets(filteredLeads), [filteredLeads]);
   const maxWeekly = Math.max(1, ...weekly.map((w) => w.count));
   const maxStage = Math.max(1, ...STAGE_ORDER.map((s) => stats.stageCounts[s] ?? 0));
 
@@ -215,9 +288,38 @@ export default function ReportsView({ leads, jurisdictions }) {
           </h1>
         </div>
 
+        <div className="flex items-center gap-2 flex-wrap mb-6">
+          <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} style={{ background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 6, height: 32, padding: "0 8px", fontSize: 12.5, color: TOKENS.textPrimary }}>
+            <option value="all">All time</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+          <select value={jurisdictionFilter} onChange={(e) => setJurisdictionFilter(e.target.value)} style={{ background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 6, height: 32, padding: "0 8px", fontSize: 12.5, color: TOKENS.textPrimary }}>
+            <option value="all">All jurisdictions</option>
+            {[...new Set(leads.map((l) => jurisdictions?.[l.jurisdiction]?.country ?? "Not set"))].sort().map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} style={{ background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 6, height: 32, padding: "0 8px", fontSize: 12.5, color: TOKENS.textPrimary }}>
+            <option value="all">All sources</option>
+            {[...new Set(leads.map((l) => l.source || "unknown"))].sort().map((s) => (
+              <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+            ))}
+          </select>
+          {(dateRange !== "all" || jurisdictionFilter !== "all" || sourceFilter !== "all") && (
+            <button
+              onClick={() => { setDateRange("all"); setJurisdictionFilter("all"); setSourceFilter("all"); }}
+              style={{ background: "none", border: "none", color: TOKENS.ivory, fontSize: 12.5, cursor: "pointer", textDecoration: "underline" }}
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+
         <div className="grid grid-cols-5 gap-px mb-8" style={{ background: TOKENS.border }}>
           {[
-            { label: "Total prospects", value: leads.length },
+            { label: "Total prospects", value: filteredLeads.length },
             { label: "Qualified + Client", value: (stats.stageCounts.qualified ?? 0) + (stats.stageCounts.client ?? 0) },
             { label: "Conversion rate", value: `${stats.conversionRate}%` },
             { label: "Pipeline value (est.)", value: formatMoney(
@@ -244,7 +346,7 @@ export default function ReportsView({ leads, jurisdictions }) {
         <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "18px 20px", marginBottom: 32, background: TOKENS.surface }}>
           {STAGE_ORDER.map((stage) => {
             const count = stats.stageCounts[stage] ?? 0;
-            const pct = leads.length ? Math.round((count / leads.length) * 100) : 0;
+            const pct = filteredLeads.length ? Math.round((count / filteredLeads.length) * 100) : 0;
             return (
               <div key={stage} className="flex items-center gap-3" style={{ marginBottom: 14 }}>
                 <div style={{ width: 90, fontSize: 12.5, color: TOKENS.textMuted, flexShrink: 0 }}>{STAGE_LABELS[stage]}</div>
@@ -293,6 +395,27 @@ export default function ReportsView({ leads, jurisdictions }) {
                 </div>
               );
             })
+          )}
+        </div>
+
+        <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+          Stage velocity — average days per transition
+        </div>
+        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "18px 20px", marginBottom: 32, background: TOKENS.surface }}>
+          {historyLoading ? (
+            <div style={{ fontSize: 12.5, color: TOKENS.textFaint }}>Loading…</div>
+          ) : stageVelocity.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: TOKENS.textFaint }}>Not enough stage changes yet to compute this.</div>
+          ) : (
+            stageVelocity.map(({ key, avgDays, count }) => (
+              <div key={key} className="flex items-center justify-between" style={{ marginBottom: 10 }}>
+                <span style={{ fontSize: 12.5, color: TOKENS.textMuted }}>{key}</span>
+                <span style={{ fontSize: 12.5 }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{avgDays}d</span>
+                  <span style={{ color: TOKENS.textFaint }}> avg · {count} lead{count === 1 ? "" : "s"}</span>
+                </span>
+              </div>
+            ))
           )}
         </div>
 
@@ -362,6 +485,78 @@ export default function ReportsView({ leads, jurisdictions }) {
                     <div style={{ width: 24, textAlign: "right", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>{count}</div>
                   </div>
                 ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+          Score distribution
+        </div>
+        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "18px 20px", marginBottom: 32, background: TOKENS.surface }}>
+          <div className="flex items-end gap-2" style={{ height: 100 }}>
+            {Object.entries(stats.scoreBuckets).map(([bucket, count]) => {
+              const maxBucket = Math.max(1, ...Object.values(stats.scoreBuckets));
+              return (
+                <div key={bucket} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
+                  <span style={{ fontSize: 11, color: TOKENS.textFaint, marginBottom: 4 }}>{count}</span>
+                  <div style={{ width: "100%", background: "#8B7FD9", borderRadius: "3px 3px 0 0", height: `${Math.max(3, (count / maxBucket) * 100)}%` }} />
+                  <span style={{ fontSize: 10.5, color: TOKENS.textFaint, marginTop: 6 }}>{bucket}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-6 mb-6">
+          <div>
+            <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+              Conversion by source
+            </div>
+            <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", background: TOKENS.surface }}>
+              {topSources.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: TOKENS.textFaint }}>No prospects yet.</div>
+              ) : (
+                topSources.map(([source, count]) => {
+                  const converted = stats.sourceQualified[source] ?? 0;
+                  const rate = count ? Math.round((converted / count) * 100) : 0;
+                  return (
+                    <div key={source} className="flex items-center gap-3" style={{ marginBottom: 10 }}>
+                      <div style={{ width: 100, fontSize: 12, color: TOKENS.textMuted, flexShrink: 0, textTransform: "capitalize" }}>
+                        {source.replace(/_/g, " ")}
+                      </div>
+                      <div style={{ flex: 1, background: TOKENS.surfaceRaised, borderRadius: 4, height: 16 }}>
+                        <div style={{ width: `${rate}%`, height: "100%", background: TOKENS.riskLow, borderRadius: 4 }} />
+                      </div>
+                      <div style={{ width: 60, textAlign: "right", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>{rate}% <span style={{ color: TOKENS.textFaint }}>({converted}/{count})</span></div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+              Conversion by jurisdiction
+            </div>
+            <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", background: TOKENS.surface }}>
+              {topJurisdictions.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: TOKENS.textFaint }}>No prospects yet.</div>
+              ) : (
+                topJurisdictions.map(([country, count]) => {
+                  const converted = stats.jurisdictionQualified[country] ?? 0;
+                  const rate = count ? Math.round((converted / count) * 100) : 0;
+                  return (
+                    <div key={country} className="flex items-center gap-3" style={{ marginBottom: 10 }}>
+                      <div style={{ width: 100, fontSize: 12, color: TOKENS.textMuted, flexShrink: 0 }}>{country}</div>
+                      <div style={{ flex: 1, background: TOKENS.surfaceRaised, borderRadius: 4, height: 16 }}>
+                        <div style={{ width: `${rate}%`, height: "100%", background: TOKENS.riskLow, borderRadius: 4 }} />
+                      </div>
+                      <div style={{ width: 60, textAlign: "right", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>{rate}% <span style={{ color: TOKENS.textFaint }}>({converted}/{count})</span></div>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>

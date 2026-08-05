@@ -90,7 +90,7 @@ export default function AdminConsole() {
               ))}
             </div>
 
-            <div className="grid grid-cols-3 gap-px mb-6" style={{ background: TOKENS.border }}>
+            <div className="grid grid-cols-5 gap-px mb-6" style={{ background: TOKENS.border }}>
               <div style={{ background: TOKENS.surface, padding: "16px 18px" }}>
                 <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
                   New this month
@@ -107,9 +107,39 @@ export default function AdminConsole() {
               </div>
               <div style={{ background: TOKENS.surface, padding: "16px 18px" }}>
                 <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                  Growth rate
+                </div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20 }}>
+                  {kpis && kpis.newLastMonth > 0
+                    ? `${kpis.newThisMonth >= kpis.newLastMonth ? "+" : ""}${Math.round(((kpis.newThisMonth - kpis.newLastMonth) / kpis.newLastMonth) * 100)}%`
+                    : "—"}
+                </div>
+              </div>
+              <div style={{ background: TOKENS.surface, padding: "16px 18px" }}>
+                <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
                   Churned
                 </div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20 }}>{kpis?.churnedCount ?? 0}</div>
+              </div>
+              <div style={{ background: TOKENS.surface, padding: "16px 18px" }}>
+                <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                  Est. LTV
+                </div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20 }}>
+                  {(() => {
+                    const payingCount = (kpis?.statusCounts?.active ?? 0) + (kpis?.statusCounts?.trialing ?? 0);
+                    const churned = kpis?.churnedCount ?? 0;
+                    // Classic ARPU / churn-rate formula only means
+                    // something once you've actually observed some
+                    // churn — with zero churned customers it blows
+                    // up toward infinity, which isn't a real number.
+                    if (!kpis?.mrr?.length || payingCount === 0 || churned === 0) return "—";
+                    const arpu = kpis.mrr[0].amount / payingCount;
+                    const churnRate = churned / (payingCount + churned);
+                    const ltv = arpu / churnRate;
+                    return `${kpis.mrr[0].currency} ${Math.round(ltv).toLocaleString()}`;
+                  })()}
+                </div>
               </div>
               <div style={{ background: TOKENS.surface, padding: "16px 18px" }}>
                 <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
@@ -118,6 +148,12 @@ export default function AdminConsole() {
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20 }}>{totalLeads}</div>
               </div>
             </div>
+
+            {(!kpis?.churnedCount || kpis.churnedCount === 0) && (
+              <p style={{ fontSize: 11.5, color: TOKENS.textFaint, marginTop: -14, marginBottom: 20 }}>
+                Est. LTV needs at least one churned customer to calculate — shows once you have real churn data.
+              </p>
+            )}
 
             {kpis?.mrr?.length > 1 && (
               <div style={{ background: TOKENS.surface, borderRadius: 10, padding: 16, marginBottom: 24 }}>
