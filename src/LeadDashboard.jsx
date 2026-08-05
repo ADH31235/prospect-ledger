@@ -386,10 +386,10 @@ export default function LeadDashboard({
   }
 
   const stats = useMemo(() => {
-    const total = leads.length;
-    const qualifiedOrClient = leads.filter((l) => l.stage === "qualified" || l.stage === "client").length;
-    const blocked = leads.filter((l) => getJurisdiction(jurisdictions, l.jurisdiction).risk === "do_not_contact").length;
-    const pipelineAssetsByCurrency = leads
+    const total = filtered.length;
+    const qualifiedOrClient = filtered.filter((l) => l.stage === "qualified" || l.stage === "client").length;
+    const blocked = filtered.filter((l) => getJurisdiction(jurisdictions, l.jurisdiction).risk === "do_not_contact").length;
+    const pipelineAssetsByCurrency = filtered
       .filter((l) => l.stage !== "disqualified")
       .reduce((acc, l) => {
         if (l.assets) {
@@ -399,7 +399,7 @@ export default function LeadDashboard({
         return acc;
       }, {});
     return { total, qualifiedOrClient, blocked, pipelineAssetsByCurrency };
-  }, [leads]);
+  }, [filtered, jurisdictions]);
 
   // Birthdays in the next 30 days, wrapping correctly around New
   // Year (e.g. a lead born in January still shows up in late
