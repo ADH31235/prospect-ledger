@@ -35,6 +35,8 @@ export default function ContentLibrary() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ title: "", content_type: "linkedin_post", body_preview: "", published_at: "" });
   const [linkBuilderFor, setLinkBuilderFor] = useState(null);
+  const [editingCountFor, setEditingCountFor] = useState(null);
+  const [countDraft, setCountDraft] = useState("");
   const [destination, setDestination] = useState("inquire");
   const [webinarId, setWebinarId] = useState("");
   const [utmSource, setUtmSource] = useState("linkedin");
@@ -127,6 +129,22 @@ export default function ContentLibrary() {
       await load();
     } catch (err) {
       alert(`Couldn't delete: ${err?.message ?? err}`);
+    }
+  }
+
+  async function saveManualCount(id) {
+    const value = parseInt(countDraft, 10);
+    if (isNaN(value) || value < 0) {
+      setEditingCountFor(null);
+      return;
+    }
+    try {
+      const { error } = await supabase.from("content_pieces").update({ manual_lead_count: value }).eq("id", id);
+      if (error) throw error;
+      setEditingCountFor(null);
+      await load();
+    } catch (err) {
+      alert(`Couldn't save: ${err?.message ?? err}`);
     }
   }
 
@@ -226,9 +244,29 @@ export default function ContentLibrary() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1" style={{ fontSize: 12.5, color: TOKENS.textMuted }}>
-                      <Users size={12} /> {leadCounts[p.slug] ?? 0} leads
-                    </div>
+                    {editingCountFor === p.id ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number" min="0" autoFocus value={countDraft}
+                          onChange={(e) => setCountDraft(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveManualCount(p.id); if (e.key === "Escape") setEditingCountFor(null); }}
+                          style={{ width: 50, background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.gold}`, borderRadius: 4, padding: "2px 6px", fontSize: 12.5, color: TOKENS.textPrimary }}
+                        />
+                        <button onClick={() => saveManualCount(p.id)} style={{ fontSize: 11.5, color: TOKENS.riskLow, background: "none", border: "none", cursor: "pointer" }}>Save</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setEditingCountFor(p.id); setCountDraft(String(p.manual_lead_count ?? 0)); }}
+                        title="Click to log leads that came from this piece but weren't captured via a tracked link"
+                        className="flex items-center gap-1"
+                        style={{ fontSize: 12.5, color: TOKENS.textMuted, background: "none", border: "none", cursor: "pointer" }}
+                      >
+                        <Users size={12} /> {(leadCounts[p.slug] ?? 0) + (p.manual_lead_count ?? 0)} leads
+                        {p.manual_lead_count > 0 && (
+                          <span style={{ color: TOKENS.textFaint }}>({leadCounts[p.slug] ?? 0} tracked + {p.manual_lead_count} logged)</span>
+                        )}
+                      </button>
+                    )}
                     <button onClick={() => startEdit(p)} title="Edit" style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.textMuted, display: "flex" }}>
                       <Pencil size={13} />
                     </button>
