@@ -43,6 +43,23 @@ function mapRow(row: any) {
     idPassportNumber: row.id_passport_number ?? "",
     homeAddress: row.home_address ?? "",
     trustee: row.trustee ?? "",
+    bankAccounts: row.bank_accounts ?? [],
+    properties: row.properties ?? [],
+    pensions: row.pensions ?? [],
+    otherInvestments: row.other_investments ?? [],
+    otherLiabilities: row.other_liabilities ?? [],
+    mortgageValue: row.mortgage_value ?? null,
+    annualIncome: row.annual_income ?? null,
+    annualExpenditure: row.annual_expenditure ?? null,
+    insuranceDetails: row.insurance_details ?? "",
+    retirementAge: row.retirement_age ?? null,
+    desiredRetirementIncome: row.desired_retirement_income ?? null,
+    location: row.location ?? "",
+    feeAmount: row.fee_amount ?? null,
+    feePeriodicity: row.fee_periodicity ?? "",
+    feeBasis: row.fee_basis ?? "",
+    feePaymentMethod: row.fee_payment_method ?? "",
+    nextFeeReviewDate: row.next_fee_review_date ?? null,
     riskProfile: row.risk_profile ?? "",
     preferredContactMethod: row.preferred_contact_method ?? "",
     nextFollowUpDate: row.next_follow_up_date ?? null,
@@ -118,16 +135,30 @@ export function useLeads() {
     // enrichment pipeline updating a lead) without a manual
     // refresh. Requires: alter publication supabase_realtime
     // add table leads;  (run once in the Supabase SQL editor)
+    //
+    // Debounced — our own actions (saving a lead, the automatic
+    // score recalculation that runs right after) also trigger this
+    // subscription, since they're changes to the same table. Several
+    // saves close together previously meant several full-list
+    // refetches firing back to back, each one re-rendering the
+    // whole table — visible as flickering. Collapsing rapid bursts
+    // into one refetch after things settle fixes that while still
+    // picking up changes made elsewhere.
+    let debounceTimer: ReturnType<typeof setTimeout>;
     const channel = supabase
       .channel("leads-changes")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "leads" },
-        () => fetchLeads()
+        () => {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => fetchLeads(), 600);
+        }
       )
       .subscribe();
 
     return () => {
+      clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, [fetchLeads]);

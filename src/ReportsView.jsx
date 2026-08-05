@@ -18,6 +18,22 @@ function formatMoney(n, currency = "GBP") {
   return (CURRENCY_SYMBOLS[currency] ?? currency + " ") + (n / 1_000_000).toFixed(1) + "M";
 }
 
+// Matches LeadDashboard.jsx's version — kept in sync so Reports
+// and Ledger always agree on what "pipeline value" means, rather
+// than silently diverging the way the old est.-assets figure did.
+function sumValues(arr) {
+  if (!Array.isArray(arr)) return 0;
+  return arr.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
+}
+function getPortfolioValue(lead) {
+  return (
+    sumValues(lead.bankAccounts) +
+    sumValues(lead.properties) +
+    sumValues(lead.pensions) +
+    sumValues(lead.otherInvestments)
+  );
+}
+
 // Buckets lead creation dates into the last N weeks (Monday-start),
 // including weeks with zero leads, so the chart shows real gaps
 // rather than silently skipping them.
@@ -205,9 +221,10 @@ export default function ReportsView({ leads, jurisdictions }) {
     const pipelineValueByCurrency = filteredLeads
       .filter((l) => l.stage !== "disqualified")
       .reduce((acc, l) => {
-        if (l.assets) {
+        const value = getPortfolioValue(l);
+        if (value) {
           const cur = l.currency || "GBP";
-          acc[cur] = (acc[cur] ?? 0) + l.assets;
+          acc[cur] = (acc[cur] ?? 0) + value;
         }
         return acc;
       }, {});

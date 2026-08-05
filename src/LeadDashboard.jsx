@@ -133,6 +133,32 @@ function formatMoney(n, currency = "GBP") {
   return symbol + (n / 1_000_000).toFixed(1) + "M";
 }
 
+// Sums a jsonb array of { value } entries — used for every
+// repeatable financial-profile category (bank accounts,
+// properties, pensions, other investments, other liabilities).
+function sumValues(arr) {
+  if (!Array.isArray(arr)) return 0;
+  return arr.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
+}
+
+// Portfolio value = every asset category added together. Not
+// stored — always computed live from its components, so it can
+// never drift out of sync with them.
+function getPortfolioValue(lead) {
+  return (
+    sumValues(lead.bankAccounts) +
+    sumValues(lead.properties) +
+    sumValues(lead.pensions) +
+    sumValues(lead.otherInvestments)
+  );
+}
+
+// Net worth = portfolio value minus everything owed — the
+// mortgage plus any other logged liabilities.
+function getNetWorth(lead) {
+  return getPortfolioValue(lead) - (Number(lead.mortgageValue) || 0) - sumValues(lead.otherLiabilities);
+}
+
 function formatDate(d) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -189,6 +215,61 @@ function ScoreBar({ score }) {
 // so it can be dropped into a Supabase-connected wrapper without
 // changing anything below — see LeadDashboardConnected.jsx.
 // ============================================================
+// ============================================================
+// Reusable editor for the repeatable financial-profile categories
+// (bank accounts, properties, pensions, other investments, other
+// liabilities) — each is a jsonb array of { [labelField]: string,
+// value: number } entries. One component instead of five
+// near-identical blocks.
+// ============================================================
+function RepeatableValueList({ items, onChange, labelField, labelPlaceholder, valuePlaceholder, currencySymbol, inputStyle }) {
+  const list = Array.isArray(items) ? items : [];
+
+  function updateRow(i, field, val) {
+    const next = [...list];
+    next[i] = { ...next[i], [field]: val };
+    onChange(next);
+  }
+  function addRow() {
+    onChange([...list, { [labelField]: "", value: "" }]);
+  }
+  function removeRow(i) {
+    onChange(list.filter((_, idx) => idx !== i));
+  }
+
+  return (
+    <div>
+      {list.map((row, i) => (
+        <div key={i} className="flex items-center gap-2" style={{ marginBottom: 6 }}>
+          <input
+            style={{ ...inputStyle, flex: 2 }}
+            placeholder={labelPlaceholder}
+            value={row[labelField] || ""}
+            onChange={(e) => updateRow(i, labelField, e.target.value)}
+          />
+          <div className="flex items-center gap-1" style={{ flex: 1 }}>
+            <span style={{ fontSize: 12, color: TOKENS.textFaint }}>{currencySymbol}</span>
+            <input
+              type="number" style={inputStyle} placeholder={valuePlaceholder ?? "0"}
+              value={row.value ?? ""}
+              onChange={(e) => updateRow(i, "value", e.target.value)}
+            />
+          </div>
+          <button type="button" onClick={() => removeRow(i)} style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.riskBlocked, display: "flex" }}>
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button" onClick={addRow}
+        style={{ fontSize: 12, color: TOKENS.gold, background: "none", border: "none", cursor: "pointer", padding: "2px 0" }}
+      >
+        + Add
+      </button>
+    </div>
+  );
+}
+
 export default function LeadDashboard({
   leads: leadsProp,
   jurisdictions = JURISDICTIONS, // default keeps standalone preview working unchanged
@@ -252,8 +333,11 @@ export default function LeadDashboard({
   const [minScore, setMinScore] = useState("");
   const [linkedinFilter, setLinkedinFilter] = useState("all");
   const [showMoreFilters, setShowMoreFilters] = useState(false);
-  const [sortKey, setSortKey] = useState("score");
-  const [sortDir, setSortDir] = useState("desc");
+  const [sortKey, setSortKey] = useState(() => localStorage.getItem("ledger_sort_key") || "score");
+  const [sortDir, setSortDir] = useState(() => localStorage.getItem("ledger_sort_dir") || "desc");
+
+  useEffect(() => { localStorage.setItem("ledger_sort_key", sortKey); }, [sortKey]);
+  useEffect(() => { localStorage.setItem("ledger_sort_dir", sortDir); }, [sortDir]);
   const [selectedId, setSelectedId] = useState(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
@@ -292,6 +376,23 @@ export default function LeadDashboard({
       id_passport_number: selected.idPassportNumber || "",
       home_address: selected.homeAddress || "",
       trustee: selected.trustee || "",
+      bank_accounts: selected.bankAccounts || [],
+      properties: selected.properties || [],
+      pensions: selected.pensions || [],
+      other_investments: selected.otherInvestments || [],
+      other_liabilities: selected.otherLiabilities || [],
+      mortgage_value: selected.mortgageValue ?? "",
+      annual_income: selected.annualIncome ?? "",
+      annual_expenditure: selected.annualExpenditure ?? "",
+      insurance_details: selected.insuranceDetails || "",
+      retirement_age: selected.retirementAge ?? "",
+      desired_retirement_income: selected.desiredRetirementIncome ?? "",
+      location: selected.location || "",
+      fee_amount: selected.feeAmount ?? "",
+      fee_periodicity: selected.feePeriodicity || "",
+      fee_basis: selected.feeBasis || "",
+      fee_payment_method: selected.feePaymentMethod || "",
+      next_fee_review_date: selected.nextFeeReviewDate || "",
       risk_profile: selected.riskProfile || "",
       preferred_contact_method: selected.preferredContactMethod || "",
       next_follow_up_date: selected.nextFollowUpDate || "",
@@ -333,6 +434,13 @@ export default function LeadDashboard({
         number_of_children: detailsDraft.number_of_children === "" ? null : Number(detailsDraft.number_of_children),
         current_provider_start_date: detailsDraft.current_provider_start_date || null,
         current_provider_maturity_date: detailsDraft.current_provider_maturity_date || null,
+        mortgage_value: detailsDraft.mortgage_value === "" ? null : Number(detailsDraft.mortgage_value),
+        annual_income: detailsDraft.annual_income === "" ? null : Number(detailsDraft.annual_income),
+        annual_expenditure: detailsDraft.annual_expenditure === "" ? null : Number(detailsDraft.annual_expenditure),
+        retirement_age: detailsDraft.retirement_age === "" ? null : Number(detailsDraft.retirement_age),
+        desired_retirement_income: detailsDraft.desired_retirement_income === "" ? null : Number(detailsDraft.desired_retirement_income),
+        fee_amount: detailsDraft.fee_amount === "" ? null : Number(detailsDraft.fee_amount),
+        next_fee_review_date: detailsDraft.next_fee_review_date || null,
       };
       if (onUpdateDetails) await onUpdateDetails(selected.id, payload);
       // Deliberately stays in edit mode — closing back to read-only
@@ -389,7 +497,7 @@ export default function LeadDashboard({
     rows.sort((a, b) => {
       let av, bv;
       if (sortKey === "score") { av = a.score; bv = b.score; }
-      else if (sortKey === "assets") { av = a.assets ?? -1; bv = b.assets ?? -1; }
+      else if (sortKey === "assets") { av = getPortfolioValue(a); bv = getPortfolioValue(b); }
       else if (sortKey === "name") { av = a.name; bv = b.name; }
       else if (sortKey === "jurisdiction") {
         av = getJurisdiction(jurisdictions, a.jurisdiction).country || "";
@@ -432,9 +540,10 @@ export default function LeadDashboard({
     const pipelineAssetsByCurrency = filtered
       .filter((l) => l.stage !== "disqualified")
       .reduce((acc, l) => {
-        if (l.assets) {
+        const value = getPortfolioValue(l);
+        if (value) {
           const cur = l.currency || "GBP";
-          acc[cur] = (acc[cur] ?? 0) + l.assets;
+          acc[cur] = (acc[cur] ?? 0) + value;
         }
         return acc;
       }, {});
@@ -1008,7 +1117,7 @@ export default function LeadDashboard({
             <SortHeader label="Prospect" sortK="name" />
             <SortHeader label="Jurisdiction" sortK="jurisdiction" />
             <SortHeader label="Stage" sortK="stage" />
-            <SortHeader label="Est. assets" sortK="assets" />
+            <SortHeader label="Portfolio value" sortK="assets" />
             <SortHeader label="Score" sortK="score" />
             <SortHeader label="Last contact" sortK="lastContact" />
           </div>
@@ -1089,7 +1198,7 @@ export default function LeadDashboard({
                   </span>
                 </div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
-                  {formatMoney(lead.assets, lead.currency)}
+                  {formatMoney(getPortfolioValue(lead), lead.currency)}
                 </div>
                 <ScoreBar score={lead.score} />
                 <div style={{ fontSize: 12.5, color: TOKENS.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
@@ -1227,6 +1336,28 @@ export default function LeadDashboard({
                   ["Co. of residence", selected.countryOfResidence || "—"],
                   ["ID/Passport No.", selected.idPassportNumber || "—"],
                   ["Home address", selected.homeAddress || "—"],
+                  ["Portfolio value", formatMoney(getPortfolioValue(selected), selected.currency)],
+                  ["Net worth", formatMoney(getNetWorth(selected), selected.currency)],
+                  ["Bank accounts", selected.bankAccounts?.length ? `${selected.bankAccounts.length} (${formatMoney(sumValues(selected.bankAccounts), selected.currency)})` : "—"],
+                  ["Properties", selected.properties?.length ? `${selected.properties.length} (${formatMoney(sumValues(selected.properties), selected.currency)})` : "—"],
+                  ["Mortgage value", formatMoney(selected.mortgageValue, selected.currency)],
+                  ["Pensions", selected.pensions?.length ? `${selected.pensions.length} (${formatMoney(sumValues(selected.pensions), selected.currency)})` : "—"],
+                  ["Other investments", selected.otherInvestments?.length ? `${selected.otherInvestments.length} (${formatMoney(sumValues(selected.otherInvestments), selected.currency)})` : "—"],
+                  ["Other liabilities", selected.otherLiabilities?.length ? `${selected.otherLiabilities.length} (${formatMoney(sumValues(selected.otherLiabilities), selected.currency)})` : "—"],
+                  ["Annual income", formatMoney(selected.annualIncome, selected.currency)],
+                  ["Annual expenditure", formatMoney(selected.annualExpenditure, selected.currency)],
+                  ["Disposable income", (selected.annualIncome != null && selected.annualExpenditure != null) ? formatMoney(selected.annualIncome - selected.annualExpenditure, selected.currency) : "—"],
+                  ["Retirement age", selected.retirementAge ?? "—"],
+                  ["Desired retirement income", formatMoney(selected.desiredRetirementIncome, selected.currency)],
+                  ["Location", selected.location || "—"],
+                  ["Insurance details", selected.insuranceDetails || "—"],
+                  ...(selected.stage === "client" ? [
+                    ["Fee amount", formatMoney(selected.feeAmount, selected.currency)],
+                    ["Fee periodicity", selected.feePeriodicity || "—"],
+                    ["Fee based on", selected.feeBasis || "—"],
+                    ["Fee payment method", selected.feePaymentMethod || "—"],
+                    ["Next fee review", formatDate(selected.nextFeeReviewDate)],
+                  ] : []),
                   ["Trustee", selected.trustee || "—"],
                   ["Risk profile", selected.riskProfile || "—"],
                   ["Preferred contact", selected.preferredContactMethod || "—"],
@@ -1376,6 +1507,156 @@ export default function LeadDashboard({
                       <div><label style={labelStyle}>Co. of residence</label><input style={inputStyle} value={detailsDraft.country_of_residence} onChange={(e) => dset("country_of_residence", e.target.value)} /></div>
                       <div><label style={labelStyle}>ID/Passport No.</label><input style={inputStyle} value={detailsDraft.id_passport_number} onChange={(e) => dset("id_passport_number", e.target.value)} /></div>
                       <div className="col-span-2"><label style={labelStyle}>Home address</label><textarea style={{ ...inputStyle, resize: "vertical" }} rows={2} value={detailsDraft.home_address} onChange={(e) => dset("home_address", e.target.value)} /></div>
+
+                      <div className="col-span-2" style={{ borderTop: `1px solid ${TOKENS.border}`, paddingTop: 16, marginTop: 4 }}>
+                        <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: TOKENS.textFaint, marginBottom: 12 }}>
+                          Financial profile
+                        </div>
+
+                        <label style={labelStyle}>Bank accounts</label>
+                        <RepeatableValueList
+                          items={detailsDraft.bank_accounts} onChange={(v) => dset("bank_accounts", v)}
+                          labelField="label" labelPlaceholder="e.g. Barclays current account"
+                          currencySymbol={CURRENCY_SYMBOLS[detailsDraft.currency] ?? detailsDraft.currency} inputStyle={inputStyle}
+                        />
+
+                        <label style={{ ...labelStyle, marginTop: 12, display: "block" }}>Properties</label>
+                        <RepeatableValueList
+                          items={detailsDraft.properties} onChange={(v) => dset("properties", v)}
+                          labelField="location" labelPlaceholder="Location, e.g. Lisbon apartment"
+                          currencySymbol={CURRENCY_SYMBOLS[detailsDraft.currency] ?? detailsDraft.currency} inputStyle={inputStyle}
+                        />
+                        <div style={{ marginTop: 8 }}>
+                          <label style={labelStyle}>Mortgage value (total)</label>
+                          <input type="number" style={inputStyle} value={detailsDraft.mortgage_value} onChange={(e) => dset("mortgage_value", e.target.value)} />
+                        </div>
+
+                        <label style={{ ...labelStyle, marginTop: 12, display: "block" }}>Pensions</label>
+                        <RepeatableValueList
+                          items={detailsDraft.pensions} onChange={(v) => dset("pensions", v)}
+                          labelField="label" labelPlaceholder="e.g. Workplace pension"
+                          currencySymbol={CURRENCY_SYMBOLS[detailsDraft.currency] ?? detailsDraft.currency} inputStyle={inputStyle}
+                        />
+
+                        <label style={{ ...labelStyle, marginTop: 12, display: "block" }}>Other investments</label>
+                        <RepeatableValueList
+                          items={detailsDraft.other_investments} onChange={(v) => dset("other_investments", v)}
+                          labelField="label" labelPlaceholder="e.g. ISA, direct equities, crypto"
+                          currencySymbol={CURRENCY_SYMBOLS[detailsDraft.currency] ?? detailsDraft.currency} inputStyle={inputStyle}
+                        />
+
+                        <label style={{ ...labelStyle, marginTop: 12, display: "block" }}>Other liabilities</label>
+                        <RepeatableValueList
+                          items={detailsDraft.other_liabilities} onChange={(v) => dset("other_liabilities", v)}
+                          labelField="label" labelPlaceholder="e.g. Car loan, credit card"
+                          currencySymbol={CURRENCY_SYMBOLS[detailsDraft.currency] ?? detailsDraft.currency} inputStyle={inputStyle}
+                        />
+
+                        <div className="grid grid-cols-2 gap-3" style={{ marginTop: 14 }}>
+                          <div>
+                            <label style={labelStyle}>Annual income</label>
+                            <input type="number" style={inputStyle} value={detailsDraft.annual_income} onChange={(e) => dset("annual_income", e.target.value)} />
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Annual expenditure</label>
+                            <input type="number" style={inputStyle} value={detailsDraft.annual_expenditure} onChange={(e) => dset("annual_expenditure", e.target.value)} />
+                          </div>
+                          <div className="col-span-2">
+                            <label style={labelStyle}>Disposable income (auto-calculated)</label>
+                            <div style={{ ...inputStyle, display: "flex", alignItems: "center", color: TOKENS.textMuted, background: TOKENS.surface }}>
+                              {detailsDraft.annual_income !== "" && detailsDraft.annual_expenditure !== ""
+                                ? formatMoney(Number(detailsDraft.annual_income) - Number(detailsDraft.annual_expenditure), detailsDraft.currency)
+                                : "—"}
+                            </div>
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Retirement age</label>
+                            <input type="number" min="0" style={inputStyle} value={detailsDraft.retirement_age} onChange={(e) => dset("retirement_age", e.target.value)} />
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Desired retirement income</label>
+                            <input type="number" style={inputStyle} value={detailsDraft.desired_retirement_income} onChange={(e) => dset("desired_retirement_income", e.target.value)} />
+                          </div>
+                          <div className="col-span-2">
+                            <label style={labelStyle}>Location</label>
+                            <input style={inputStyle} value={detailsDraft.location} onChange={(e) => dset("location", e.target.value)} placeholder="e.g. current city/base, distinct from home address" />
+                          </div>
+                          <div className="col-span-2">
+                            <label style={labelStyle}>Insurance details</label>
+                            <textarea style={{ ...inputStyle, resize: "vertical" }} rows={2} value={detailsDraft.insurance_details} onChange={(e) => dset("insurance_details", e.target.value)} placeholder="Life cover, income protection, critical illness, etc." />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between" style={{ marginTop: 14, padding: "10px 12px", background: TOKENS.surface, borderRadius: 6 }}>
+                          <div>
+                            <div style={{ fontSize: 11, color: TOKENS.textFaint }}>Portfolio value</div>
+                            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15 }}>
+                              {formatMoney(getPortfolioValue({
+                                bankAccounts: detailsDraft.bank_accounts, properties: detailsDraft.properties,
+                                pensions: detailsDraft.pensions, otherInvestments: detailsDraft.other_investments,
+                              }), detailsDraft.currency)}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 11, color: TOKENS.textFaint }}>Net worth</div>
+                            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15 }}>
+                              {formatMoney(getNetWorth({
+                                bankAccounts: detailsDraft.bank_accounts, properties: detailsDraft.properties,
+                                pensions: detailsDraft.pensions, otherInvestments: detailsDraft.other_investments,
+                                mortgageValue: detailsDraft.mortgage_value, otherLiabilities: detailsDraft.other_liabilities,
+                              }), detailsDraft.currency)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {selected.stage === "client" && (
+                        <div className="col-span-2" style={{ borderTop: `1px solid ${TOKENS.border}`, paddingTop: 16, marginTop: 4 }}>
+                          <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: TOKENS.textFaint, marginBottom: 12 }}>
+                            Fees
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label style={labelStyle}>Fee amount</label>
+                              <input type="number" style={inputStyle} value={detailsDraft.fee_amount} onChange={(e) => dset("fee_amount", e.target.value)} />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Periodicity</label>
+                              <select style={inputStyle} value={detailsDraft.fee_periodicity} onChange={(e) => dset("fee_periodicity", e.target.value)}>
+                                <option value="">—</option>
+                                <option value="one_off">One-off</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="quarterly">Quarterly</option>
+                                <option value="annually">Annually</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Based on</label>
+                              <select style={inputStyle} value={detailsDraft.fee_basis} onChange={(e) => dset("fee_basis", e.target.value)}>
+                                <option value="">—</option>
+                                <option value="pct_aum">% of AUM</option>
+                                <option value="fixed">Fixed fee</option>
+                                <option value="hourly">Hourly</option>
+                                <option value="retainer">Retainer</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Payment method</label>
+                              <select style={inputStyle} value={detailsDraft.fee_payment_method} onChange={(e) => dset("fee_payment_method", e.target.value)}>
+                                <option value="">—</option>
+                                <option value="direct_debit">Direct debit</option>
+                                <option value="invoice">Invoice</option>
+                                <option value="deducted_from_portfolio">Deducted from portfolio</option>
+                              </select>
+                            </div>
+                            <div className="col-span-2">
+                              <label style={labelStyle}>Next fee review date</label>
+                              <input type="date" style={inputStyle} value={detailsDraft.next_fee_review_date} onChange={(e) => dset("next_fee_review_date", e.target.value)} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="col-span-2">
                         <label style={labelStyle}>Current investment products</label>
                         <textarea style={{ ...inputStyle, resize: "vertical" }} rows={2} value={detailsDraft.current_investment_products} onChange={(e) => dset("current_investment_products", e.target.value)} placeholder="Funds, direct equities, real estate, etc." />
