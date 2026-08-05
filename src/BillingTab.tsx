@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { CreditCard, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import { useTenant } from "./useTenant";
@@ -45,6 +45,32 @@ export default function BillingTab() {
   const [canceling, setCanceling] = useState(false);
   const [cancelError, setCancelError] = useState("");
   const [cancelRequested, setCancelRequested] = useState(false);
+  const [notifyEmailDraft, setNotifyEmailDraft] = useState("");
+  const [savingNotifyEmail, setSavingNotifyEmail] = useState(false);
+  const [notifyEmailSaved, setNotifyEmailSaved] = useState(false);
+  const [notifyEmailError, setNotifyEmailError] = useState("");
+
+  useEffect(() => {
+    if (tenant?.notify_email) setNotifyEmailDraft(tenant.notify_email);
+  }, [tenant?.notify_email]);
+
+  async function handleSaveNotifyEmail() {
+    setSavingNotifyEmail(true);
+    setNotifyEmailError("");
+    setNotifyEmailSaved(false);
+    try {
+      const { error } = await supabase.functions.invoke("update-notify-email", {
+        body: { notify_email: notifyEmailDraft },
+      });
+      if (error) throw error;
+      setNotifyEmailSaved(true);
+      await refetch();
+    } catch (err) {
+      setNotifyEmailError(err?.message ?? "Couldn't save.");
+    } finally {
+      setSavingNotifyEmail(false);
+    }
+  }
 
   async function handleCancel() {
     if (!window.confirm("Cancel your subscription? You'll keep access until the end of your current billing period, then it won't renew.")) {
@@ -178,6 +204,33 @@ export default function BillingTab() {
                 {checkoutError && <div style={{ color: TOKENS.riskBlocked, fontSize: 12.5, marginTop: 10 }}>{checkoutError}</div>}
               </>
             )}
+          </div>
+        )}
+
+        {!loading && (
+          <div style={{ background: TOKENS.surface, borderRadius: 10, padding: 24, marginTop: 20 }}>
+            <div style={{ fontSize: 12, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+              Notifications
+            </div>
+            <p style={{ fontSize: 12.5, color: TOKENS.textMuted, marginBottom: 12, lineHeight: 1.6 }}>
+              Where alerts for this workspace go — new inquiries, webinar registrations, upcoming birthdays.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="email" value={notifyEmailDraft} onChange={(e) => setNotifyEmailDraft(e.target.value)}
+                placeholder="you@company.com"
+                style={{ flex: 1, background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "9px 10px", fontSize: 13, color: TOKENS.textPrimary }}
+              />
+              <button
+                onClick={handleSaveNotifyEmail}
+                disabled={savingNotifyEmail}
+                style={{ background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "0 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: savingNotifyEmail ? 0.6 : 1 }}
+              >
+                {savingNotifyEmail ? "Saving…" : "Save"}
+              </button>
+            </div>
+            {notifyEmailSaved && <div style={{ color: TOKENS.riskLow, fontSize: 12, marginTop: 8 }}>Saved.</div>}
+            {notifyEmailError && <div style={{ color: TOKENS.riskBlocked, fontSize: 12, marginTop: 8 }}>{notifyEmailError}</div>}
           </div>
         )}
       </div>
