@@ -11,9 +11,11 @@ const STAGE_LABELS = {
   engaged: "Engaged", qualified: "Qualified", client: "Client",
 };
 
-function formatMoney(n) {
-  if (!n) return "£0.0M";
-  return "£" + (n / 1_000_000).toFixed(1) + "M";
+const CURRENCY_SYMBOLS = { GBP: "£", USD: "$", EUR: "€", AED: "AED ", CHF: "CHF " };
+
+function formatMoney(n, currency = "GBP") {
+  if (!n) return `${CURRENCY_SYMBOLS[currency] ?? currency + " "}0.0M`;
+  return (CURRENCY_SYMBOLS[currency] ?? currency + " ") + (n / 1_000_000).toFixed(1) + "M";
 }
 
 // Buckets lead creation dates into the last N weeks (Monday-start),
@@ -49,6 +51,24 @@ export default function ReportsView({ leads, jurisdictions }) {
   const [allHistory, setAllHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [contentPieces, setContentPieces] = useState([]);
+
+  // Shared with the Ledger tab's currency picker (same localStorage
+  // keys, read fresh here) — so switching between tabs always shows
+  // a consistent pipeline total, rather than each screen quietly
+  // assuming GBP. This component fully remounts each time you
+  // switch to the Reports tab, so this lazy read always picks up
+  // whatever was most recently chosen on Ledger.
+  const [assetsDisplayCurrency] = useState(
+    () => localStorage.getItem("ledger_assets_display_currency") || "GBP"
+  );
+  const [assetsManualRates] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("ledger_assets_manual_rates") || "{}");
+    } catch {
+      return {};
+    }
+  });
+
 
   useEffect(() => {
     supabase.from("content_pieces").select("slug, title, content_type").then(({ data }) => {
@@ -150,9 +170,15 @@ export default function ReportsView({ leads, jurisdictions }) {
       if (slug) contentCounts[slug] = (contentCounts[slug] ?? 0) + 1;
     }
 
-    const totalPipelineValue = leads
+    const pipelineValueByCurrency = leads
       .filter((l) => l.stage !== "disqualified")
-      .reduce((sum, l) => sum + (l.assets ?? 0), 0);
+      .reduce((acc, l) => {
+        if (l.assets) {
+          const cur = l.currency || "GBP";
+          acc[cur] = (acc[cur] ?? 0) + l.assets;
+        }
+        return acc;
+      }, {});
 
     const avgScore = leads.length
       ? Math.round(leads.reduce((sum, l) => sum + (l.score ?? 0), 0) / leads.length)
@@ -161,7 +187,7 @@ export default function ReportsView({ leads, jurisdictions }) {
     const qualifiedOrClient = (stageCounts.qualified ?? 0) + (stageCounts.client ?? 0);
     const conversionRate = leads.length ? Math.round((qualifiedOrClient / leads.length) * 100) : 0;
 
-    return { stageCounts, sourceCounts, jurisdictionCounts, campaignCounts, contentCounts, totalPipelineValue, avgScore, conversionRate };
+    return { stageCounts, sourceCounts, jurisdictionCounts, campaignCounts, contentCounts, pipelineValueByCurrency, avgScore, conversionRate };
   }, [leads, jurisdictions]);
 
   const weekly = useMemo(() => weeklyBuckets(leads), [leads]);
@@ -194,7 +220,13 @@ export default function ReportsView({ leads, jurisdictions }) {
             { label: "Total prospects", value: leads.length },
             { label: "Qualified + Client", value: (stats.stageCounts.qualified ?? 0) + (stats.stageCounts.client ?? 0) },
             { label: "Conversion rate", value: `${stats.conversionRate}%` },
-            { label: "Pipeline value (est.)", value: formatMoney(stats.totalPipelineValue) },
+            { label: "Pipeline value (est.)", value: formatMoney(
+                Object.keys(stats.pipelineValueByCurrency).reduce((sum, cur) => {
+                  const rate = cur === assetsDisplayCurrency ? 1 : (assetsManualRates[cur] ?? 1);
+                  return sum + stats.pipelineValueByCurrency[cur] * rate;
+                }, 0),
+                assetsDisplayCurrency
+              ) },
             { label: "Avg days to qualify", value: avgDaysToQualify != null ? avgDaysToQualify : "—" },
           ].map((s) => (
             <div key={s.label} style={{ background: TOKENS.surface, padding: "16px 18px" }}>
