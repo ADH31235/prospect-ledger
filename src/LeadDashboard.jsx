@@ -134,6 +134,17 @@ function formatMoney(n, currency = "GBP") {
   return symbol + (n / 1_000_000).toFixed(1) + "M";
 }
 
+// Fees are a completely different scale from portfolio values —
+// hundreds or thousands, not millions. Using formatMoney's "divide
+// by a million, show M" on a number like £2,000 rounds it straight
+// down to "£0.0M", which looks like a broken calculation when the
+// underlying number was actually correct all along.
+function formatFeeMoney(n, currency = "GBP") {
+  if (n == null) return "—";
+  const symbol = CURRENCY_SYMBOLS[currency] ?? currency + " ";
+  return symbol + Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 // Sums a jsonb array of { value } entries — used for every
 // repeatable financial-profile category (bank accounts,
 // properties, pensions, other investments, other liabilities).
@@ -163,32 +174,60 @@ function getNetWorth(lead) {
 }
 
 const PERIODS_PER_YEAR = { monthly: 12, quarterly: 4, annually: 1, one_off: 0 };
+// Day-based, not calendar-month-based — a quarterly fee is 90 days
+// out, not "3 months" (which drifts depending which months those
+// are). Matches how fee cycles are actually billed.
+const DAYS_PER_PERIOD = { monthly: 30, quarterly: 90, annually: 365 };
 
 // Annualised fee value — what one calendar year of this fee
-// arrangement amounts to. One-off fees don't annualise (they're a
-// single charge, not a recurring rate), so this returns null for
-// those rather than a misleading number.
+// arrangement amounts to. Two completely different calculations
+// depending on fee_basis: a flat fee (fixed/hourly/retainer) is
+// just the per-period amount times how many periods happen in a
+// year. "% of AUM" is a rate applied against the client's actual
+// Portfolio Value, not a flat amount — treating it as one would
+// be wrong by orders of magnitude. One-off fees don't annualise
+// at all (they're a single charge, not a recurring rate).
 function getAnnualizedFeeValue(lead) {
   if (!lead.feeAmount || !lead.feePeriodicity) return null;
+  if (lead.feePeriodicity === "one_off") return null;
+  if (lead.feeBasis === "pct_aum") {
+    return (Number(lead.portfolioValue) || 0) * (lead.feeAmount / 100);
+  }
   const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
   if (!periods) return null;
   return lead.feeAmount * periods;
 }
 
+// What's actually charged for ONE period — e.g. 1% per annum
+// taken quarterly is 0.25% of AUM per quarter, not 1%. For flat
+// fees, this is just the fee_amount itself (that's already a
+// per-period figure by definition).
+function getFeePerPeriodValue(lead) {
+  if (lead.feePeriodicity === "one_off") return lead.feeAmount || null;
+  const annual = getAnnualizedFeeValue(lead);
+  if (annual == null) return null;
+  const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
+  if (!periods) return null;
+  return annual / periods;
+}
+
 // Revenue collected so far — an ESTIMATE assuming the fee has
-// been charged consistently at the current rate since fee_start_date,
-// not a record of actual payments (we don't track individual
-// payment events). Always presented as an estimate, never as fact.
+// been charged consistently at the current rate since
+// fee_start_date, not a record of actual payments (we don't track
+// individual payment events). Day-based elapsed-period counting,
+// matching the day-based due-date cycling below. Always presented
+// as an estimate, never as fact.
 function getFeeRevenueSinceStart(lead) {
   if (!lead.feeStartDate || !lead.feeAmount || !lead.feePeriodicity) return null;
-  const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
   const start = new Date(lead.feeStartDate);
   const now = new Date();
   if (lead.feePeriodicity === "one_off") return start <= now ? lead.feeAmount : 0;
-  if (!periods) return null;
-  const monthsElapsed = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-  const periodsElapsed = Math.max(0, Math.floor((monthsElapsed / 12) * periods));
-  return periodsElapsed * lead.feeAmount;
+  const perPeriod = getFeePerPeriodValue(lead);
+  const daysPerPeriod = DAYS_PER_PERIOD[lead.feePeriodicity];
+  if (perPeriod == null || !daysPerPeriod) return null;
+  const daysElapsed = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+  const periodsElapsed = Math.max(0, Math.floor(daysElapsed / daysPerPeriod));
+  return periodsElapsed * perPeriod;
 }
 
 // Trailing-12-months estimate — same logic, capped to whichever
@@ -199,23 +238,23 @@ function getFeeRevenueRolling12Months(lead) {
   if (annual == null || !lead.feeStartDate) return null;
   const start = new Date(lead.feeStartDate);
   const now = new Date();
-  const monthsElapsed = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-  if (monthsElapsed >= 12) return annual;
-  return Math.max(0, annual * (monthsElapsed / 12));
+  const daysElapsed = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+  if (daysElapsed >= 365) return annual;
+  return Math.max(0, annual * (daysElapsed / 365));
 }
 
-// Next payment due — cycles forward from fee_start_date by the
-// periodicity until it lands on the next upcoming occurrence.
+// Next payment due — cycles forward from fee_start_date in fixed
+// day increments (not calendar months) until it lands on the next
+// upcoming occurrence. A quarterly fee is genuinely 90 days out.
 function getNextFeeDueDate(lead) {
   if (!lead.feeStartDate || !lead.feePeriodicity || lead.feePeriodicity === "one_off") return null;
-  const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
-  if (!periods) return null;
-  const monthsPerPeriod = 12 / periods;
+  const daysPerPeriod = DAYS_PER_PERIOD[lead.feePeriodicity];
+  if (!daysPerPeriod) return null;
   let next = new Date(lead.feeStartDate);
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   while (next < now) {
-    next.setMonth(next.getMonth() + monthsPerPeriod);
+    next.setDate(next.getDate() + daysPerPeriod);
   }
   return next;
 }
@@ -915,7 +954,7 @@ export default function LeadDashboard({
                   }}
                 >
                   {lead.name} — {daysUntil === 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`}
-                  <span style={{ color: TOKENS.textFaint }}> ({formatMoney(lead.feeAmount, lead.currency)} · {date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })})</span>
+                  <span style={{ color: TOKENS.textFaint }}> ({formatFeeMoney(lead.feeAmount, lead.currency)} · {date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })})</span>
                 </button>
               ))}
             </div>
@@ -1458,15 +1497,16 @@ export default function LeadDashboard({
                   ["Location", selected.location || "—"],
                   ["Insurance details", selected.insuranceDetails || "—"],
                   ...(selected.stage === "client" ? [
-                    ["Fee amount", formatMoney(selected.feeAmount, selected.currency)],
+                    [selected.feeBasis === "pct_aum" ? "Fee rate" : "Fee amount", selected.feeBasis === "pct_aum" ? (selected.feeAmount != null ? `${selected.feeAmount}% per annum` : "—") : formatFeeMoney(selected.feeAmount, selected.currency)],
                     ["Fee periodicity", selected.feePeriodicity || "—"],
                     ["Fee based on", selected.feeBasis || "—"],
                     ["Fee payment method", selected.feePaymentMethod || "—"],
                     ["Fee start date", formatDate(selected.feeStartDate)],
                     ["Next fee review", formatDate(selected.nextFeeReviewDate)],
-                    ["Per calendar year", formatMoney(getAnnualizedFeeValue(selected), selected.currency)],
-                    ["Trailing 12 months (est.)", formatMoney(getFeeRevenueRolling12Months(selected), selected.currency)],
-                    ["Est. revenue since start", formatMoney(getFeeRevenueSinceStart(selected), selected.currency)],
+                    ["This period", formatFeeMoney(getFeePerPeriodValue(selected), selected.currency)],
+                    ["Per calendar year", formatFeeMoney(getAnnualizedFeeValue(selected), selected.currency)],
+                    ["Trailing 12 months (est.)", formatFeeMoney(getFeeRevenueRolling12Months(selected), selected.currency)],
+                    ["Est. revenue since start", formatFeeMoney(getFeeRevenueSinceStart(selected), selected.currency)],
                     ["Next payment due", (() => { const d = getNextFeeDueDate(selected); return d ? formatDate(d.toISOString()) : "—"; })()],
                   ] : []),
                   ["Trustee", selected.trustee || "—"],
@@ -1742,8 +1782,12 @@ export default function LeadDashboard({
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <label style={labelStyle}>Fee amount</label>
-                              <input type="number" style={inputStyle} value={detailsDraft.fee_amount} onChange={(e) => dset("fee_amount", e.target.value)} />
+                              <label style={labelStyle}>{detailsDraft.fee_basis === "pct_aum" ? "Fee rate (% per annum)" : "Fee amount"}</label>
+                              <input
+                                type="number" step="0.01" style={inputStyle} value={detailsDraft.fee_amount}
+                                onChange={(e) => dset("fee_amount", e.target.value)}
+                                placeholder={detailsDraft.fee_basis === "pct_aum" ? "e.g. 1 for 1% per annum" : undefined}
+                              />
                             </div>
                             <div>
                               <label style={labelStyle}>Periodicity</label>
@@ -1788,30 +1832,41 @@ export default function LeadDashboard({
                             const draftLead = {
                               feeAmount: detailsDraft.fee_amount === "" ? null : Number(detailsDraft.fee_amount),
                               feePeriodicity: detailsDraft.fee_periodicity, feeStartDate: detailsDraft.fee_start_date,
+                              feeBasis: detailsDraft.fee_basis,
+                              portfolioValue: detailsDraft.portfolio_value === "" ? null : Number(detailsDraft.portfolio_value),
                             };
                             const annualized = getAnnualizedFeeValue(draftLead);
+                            const perPeriod = getFeePerPeriodValue(draftLead);
                             const revenueToDate = getFeeRevenueSinceStart(draftLead);
                             const rolling12 = getFeeRevenueRolling12Months(draftLead);
                             const nextDue = getNextFeeDueDate(draftLead);
                             if (annualized == null && revenueToDate == null) return null;
                             return (
                               <div className="grid grid-cols-2 gap-3" style={{ marginTop: 12, padding: "10px 12px", background: TOKENS.surface, borderRadius: 6 }}>
+                                {perPeriod != null && draftLead.feePeriodicity !== "one_off" && (
+                                  <div>
+                                    <div style={{ fontSize: 11, color: TOKENS.textFaint }}>
+                                      This period{draftLead.feeBasis === "pct_aum" ? ` (${(draftLead.feeAmount / PERIODS_PER_YEAR[draftLead.feePeriodicity]).toFixed(2)}% of AUM)` : ""}
+                                    </div>
+                                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14 }}>{formatFeeMoney(perPeriod, detailsDraft.currency)}</div>
+                                  </div>
+                                )}
                                 {annualized != null && (
                                   <div>
                                     <div style={{ fontSize: 11, color: TOKENS.textFaint }}>Per calendar year</div>
-                                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14 }}>{formatMoney(annualized, detailsDraft.currency)}</div>
+                                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14 }}>{formatFeeMoney(annualized, detailsDraft.currency)}</div>
                                   </div>
                                 )}
                                 {rolling12 != null && (
                                   <div>
                                     <div style={{ fontSize: 11, color: TOKENS.textFaint }}>Trailing 12 months (est.)</div>
-                                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14 }}>{formatMoney(rolling12, detailsDraft.currency)}</div>
+                                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14 }}>{formatFeeMoney(rolling12, detailsDraft.currency)}</div>
                                   </div>
                                 )}
                                 {revenueToDate != null && (
                                   <div>
                                     <div style={{ fontSize: 11, color: TOKENS.textFaint }}>Est. revenue since start</div>
-                                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14 }}>{formatMoney(revenueToDate, detailsDraft.currency)}</div>
+                                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14 }}>{formatFeeMoney(revenueToDate, detailsDraft.currency)}</div>
                                   </div>
                                 )}
                                 {nextDue && (

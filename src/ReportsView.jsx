@@ -18,6 +18,17 @@ function formatMoney(n, currency = "GBP") {
   return (CURRENCY_SYMBOLS[currency] ?? currency + " ") + (n / 1_000_000).toFixed(1) + "M";
 }
 
+// Same reasoning as LeadDashboard.jsx — fees are a completely
+// different scale from portfolio values, and formatMoney's
+// divide-by-a-million display crushes any realistic fee amount
+// down to "0.0M", which looks like a broken calculation when the
+// number was actually fine.
+function formatFeeMoney(n, currency = "GBP") {
+  if (n == null) return "—";
+  const symbol = CURRENCY_SYMBOLS[currency] ?? currency + " ";
+  return symbol + Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 // Matches LeadDashboard.jsx's version — kept in sync so Reports
 // and Ledger always agree on what "pipeline value" means, rather
 // than silently diverging the way the old est.-assets figure did.
@@ -39,46 +50,60 @@ function getNetWorth(lead) {
 }
 
 const PERIODS_PER_YEAR = { monthly: 12, quarterly: 4, annually: 1, one_off: 0 };
+const DAYS_PER_PERIOD = { monthly: 30, quarterly: 90, annually: 365 };
 
 function getAnnualizedFeeValue(lead) {
   if (!lead.feeAmount || !lead.feePeriodicity) return null;
+  if (lead.feePeriodicity === "one_off") return null;
+  if (lead.feeBasis === "pct_aum") {
+    return (Number(lead.portfolioValue) || 0) * (lead.feeAmount / 100);
+  }
   const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
   if (!periods) return null;
   return lead.feeAmount * periods;
 }
+function getFeePerPeriodValue(lead) {
+  if (lead.feePeriodicity === "one_off") return lead.feeAmount || null;
+  const annual = getAnnualizedFeeValue(lead);
+  if (annual == null) return null;
+  const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
+  if (!periods) return null;
+  return annual / periods;
+}
 function getFeeRevenueSinceStart(lead) {
   if (!lead.feeStartDate || !lead.feeAmount || !lead.feePeriodicity) return null;
-  const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
   const start = new Date(lead.feeStartDate);
   const now = new Date();
   if (lead.feePeriodicity === "one_off") return start <= now ? lead.feeAmount : 0;
-  if (!periods) return null;
-  const monthsElapsed = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-  const periodsElapsed = Math.max(0, Math.floor((monthsElapsed / 12) * periods));
-  return periodsElapsed * lead.feeAmount;
+  const perPeriod = getFeePerPeriodValue(lead);
+  const daysPerPeriod = DAYS_PER_PERIOD[lead.feePeriodicity];
+  if (perPeriod == null || !daysPerPeriod) return null;
+  const daysElapsed = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+  const periodsElapsed = Math.max(0, Math.floor(daysElapsed / daysPerPeriod));
+  return periodsElapsed * perPeriod;
 }
 function getFeeRevenueRolling12Months(lead) {
   const annual = getAnnualizedFeeValue(lead);
   if (annual == null || !lead.feeStartDate) return null;
   const start = new Date(lead.feeStartDate);
   const now = new Date();
-  const monthsElapsed = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-  if (monthsElapsed >= 12) return annual;
-  return Math.max(0, annual * (monthsElapsed / 12));
+  const daysElapsed = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+  if (daysElapsed >= 365) return annual;
+  return Math.max(0, annual * (daysElapsed / 365));
 }
 function getNextFeeDueDate(lead) {
   if (!lead.feeStartDate || !lead.feePeriodicity || lead.feePeriodicity === "one_off") return null;
-  const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
-  if (!periods) return null;
-  const monthsPerPeriod = 12 / periods;
+  const daysPerPeriod = DAYS_PER_PERIOD[lead.feePeriodicity];
+  if (!daysPerPeriod) return null;
   let next = new Date(lead.feeStartDate);
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   while (next < now) {
-    next.setMonth(next.getMonth() + monthsPerPeriod);
+    next.setDate(next.getDate() + daysPerPeriod);
   }
   return next;
 }
+
 
 // Buckets lead creation dates into the last N weeks (Monday-start),
 // including weeks with zero leads, so the chart shows real gaps
@@ -894,9 +919,9 @@ function AdvisorTab({ leads }) {
       <div className="grid grid-cols-4 gap-px mb-6" style={{ background: TOKENS.border }}>
         {[
           { label: "Fee-paying clients", value: clients.length },
-          { label: "Per calendar year", value: formatMoney(totalPerYear, currency) },
-          { label: "Trailing 12 months", value: formatMoney(totalRolling12, currency) },
-          { label: "Est. revenue since start", value: formatMoney(totalSinceStart, currency) },
+          { label: "Per calendar year", value: formatFeeMoney(totalPerYear, currency) },
+          { label: "Trailing 12 months", value: formatFeeMoney(totalRolling12, currency) },
+          { label: "Est. revenue since start", value: formatFeeMoney(totalSinceStart, currency) },
         ].map((s) => (
           <div key={s.label} style={{ background: TOKENS.surface, padding: "16px 18px" }}>
             <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>{s.label}</div>
@@ -905,7 +930,7 @@ function AdvisorTab({ leads }) {
         ))}
       </div>
       <p style={{ fontSize: 11.5, color: TOKENS.textFaint, marginTop: -14, marginBottom: 24 }}>
-        Per-calendar-year and trailing-12-months are projections at each client's current fee rate, not confirmed payments. Average fee per client: {formatMoney(avgFeePerClient, currency)}/year.
+        Per-calendar-year and trailing-12-months are projections at each client's current fee rate, not confirmed payments. Average fee per client: {formatFeeMoney(avgFeePerClient, currency)}/year.
       </p>
 
       <div className="grid grid-cols-2 gap-6">
@@ -921,7 +946,7 @@ function AdvisorTab({ leads }) {
                 <div key={lead.id} className="flex items-center justify-between px-4 py-2.5" style={{ background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8", borderBottom: i < upcoming.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none" }}>
                   <span style={{ fontSize: 13 }}>{lead.name}</span>
                   <span style={{ fontSize: 12.5, color: TOKENS.textMuted }}>
-                    {formatMoney(lead.feeAmount, lead.currency)} · {due.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                    {formatFeeMoney(lead.feeAmount, lead.currency)} · {due.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
                   </span>
                 </div>
               ))
