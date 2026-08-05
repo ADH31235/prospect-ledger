@@ -18,6 +18,7 @@ import {
   Linkedin,
   RefreshCw,
   Cake,
+  Wallet,
 } from "lucide-react";
 import { TOKENS } from "./theme";
 
@@ -157,6 +158,64 @@ function getPortfolioValue(lead) {
 // mortgage plus any other logged liabilities.
 function getNetWorth(lead) {
   return getPortfolioValue(lead) - (Number(lead.mortgageValue) || 0) - sumValues(lead.otherLiabilities);
+}
+
+const PERIODS_PER_YEAR = { monthly: 12, quarterly: 4, annually: 1, one_off: 0 };
+
+// Annualised fee value — what one calendar year of this fee
+// arrangement amounts to. One-off fees don't annualise (they're a
+// single charge, not a recurring rate), so this returns null for
+// those rather than a misleading number.
+function getAnnualizedFeeValue(lead) {
+  if (!lead.feeAmount || !lead.feePeriodicity) return null;
+  const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
+  if (!periods) return null;
+  return lead.feeAmount * periods;
+}
+
+// Revenue collected so far — an ESTIMATE assuming the fee has
+// been charged consistently at the current rate since fee_start_date,
+// not a record of actual payments (we don't track individual
+// payment events). Always presented as an estimate, never as fact.
+function getFeeRevenueSinceStart(lead) {
+  if (!lead.feeStartDate || !lead.feeAmount || !lead.feePeriodicity) return null;
+  const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
+  const start = new Date(lead.feeStartDate);
+  const now = new Date();
+  if (lead.feePeriodicity === "one_off") return start <= now ? lead.feeAmount : 0;
+  if (!periods) return null;
+  const monthsElapsed = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  const periodsElapsed = Math.max(0, Math.floor((monthsElapsed / 12) * periods));
+  return periodsElapsed * lead.feeAmount;
+}
+
+// Trailing-12-months estimate — same logic, capped to whichever
+// is smaller: a full year's worth, or however long the
+// arrangement has actually existed so far.
+function getFeeRevenueRolling12Months(lead) {
+  const annual = getAnnualizedFeeValue(lead);
+  if (annual == null || !lead.feeStartDate) return null;
+  const start = new Date(lead.feeStartDate);
+  const now = new Date();
+  const monthsElapsed = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  if (monthsElapsed >= 12) return annual;
+  return Math.max(0, annual * (monthsElapsed / 12));
+}
+
+// Next payment due — cycles forward from fee_start_date by the
+// periodicity until it lands on the next upcoming occurrence.
+function getNextFeeDueDate(lead) {
+  if (!lead.feeStartDate || !lead.feePeriodicity || lead.feePeriodicity === "one_off") return null;
+  const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
+  if (!periods) return null;
+  const monthsPerPeriod = 12 / periods;
+  let next = new Date(lead.feeStartDate);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  while (next < now) {
+    next.setMonth(next.getMonth() + monthsPerPeriod);
+  }
+  return next;
 }
 
 function formatDate(d) {
@@ -393,6 +452,7 @@ export default function LeadDashboard({
       fee_basis: selected.feeBasis || "",
       fee_payment_method: selected.feePaymentMethod || "",
       next_fee_review_date: selected.nextFeeReviewDate || "",
+      fee_start_date: selected.feeStartDate || "",
       risk_profile: selected.riskProfile || "",
       preferred_contact_method: selected.preferredContactMethod || "",
       next_follow_up_date: selected.nextFollowUpDate || "",
@@ -441,6 +501,15 @@ export default function LeadDashboard({
         desired_retirement_income: detailsDraft.desired_retirement_income === "" ? null : Number(detailsDraft.desired_retirement_income),
         fee_amount: detailsDraft.fee_amount === "" ? null : Number(detailsDraft.fee_amount),
         next_fee_review_date: detailsDraft.next_fee_review_date || null,
+        fee_start_date: detailsDraft.fee_start_date || null,
+        // Kept in sync automatically — this used to be a manually
+        // typed figure with no connection to the actual breakdown
+        // below it, which is exactly why it was confusing. Now it's
+        // always just whatever the Financial Profile adds up to.
+        estimated_investable_assets: getPortfolioValue({
+          bankAccounts: detailsDraft.bank_accounts, properties: detailsDraft.properties,
+          pensions: detailsDraft.pensions, otherInvestments: detailsDraft.other_investments,
+        }),
       };
       if (onUpdateDetails) await onUpdateDetails(selected.id, payload);
       // Deliberately stays in edit mode — closing back to read-only
@@ -569,6 +638,20 @@ export default function LeadDashboard({
         daysUntil = Math.round((thisYear - today) / (1000 * 60 * 60 * 24));
       }
       if (daysUntil <= 30) results.push({ lead: l, date: thisYear, daysUntil });
+    }
+    return results.sort((a, b) => a.daysUntil - b.daysUntil);
+  }, [leads]);
+
+  const upcomingFeesDue = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const results = [];
+    for (const l of leads) {
+      if (l.stage !== "client") continue;
+      const due = getNextFeeDueDate(l);
+      if (!due) continue;
+      const daysUntil = Math.round((due - today) / (1000 * 60 * 60 * 24));
+      if (daysUntil >= 0 && daysUntil <= 14) results.push({ lead: l, date: due, daysUntil });
     }
     return results.sort((a, b) => a.daysUntil - b.daysUntil);
   }, [leads]);
@@ -810,6 +893,33 @@ export default function LeadDashboard({
                 >
                   {lead.name} — {daysUntil === 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`}
                   <span style={{ color: TOKENS.textFaint }}> ({date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {upcomingFeesDue.length > 0 && (
+          <div style={{
+            background: TOKENS.surface, border: `1px solid ${TOKENS.riskReview}55`, borderRadius: 8,
+            padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+          }}>
+            <Wallet size={16} color={TOKENS.riskReview} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: 12.5, color: TOKENS.textMuted, flexShrink: 0 }}>
+              {upcomingFeesDue.length} fee{upcomingFeesDue.length === 1 ? "" : "s"} due in the next 14 days:
+            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              {upcomingFeesDue.map(({ lead, date, daysUntil }) => (
+                <button
+                  key={lead.id}
+                  onClick={() => setSelectedId(lead.id)}
+                  style={{
+                    fontSize: 12, background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.border}`, borderRadius: 999,
+                    padding: "3px 10px", cursor: "pointer", color: TOKENS.textPrimary,
+                  }}
+                >
+                  {lead.name} — {daysUntil === 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`}
+                  <span style={{ color: TOKENS.textFaint }}> ({formatMoney(lead.feeAmount, lead.currency)} · {date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })})</span>
                 </button>
               ))}
             </div>
@@ -1313,7 +1423,6 @@ export default function LeadDashboard({
               <dl className="grid grid-cols-2 gap-y-4 gap-x-3 mb-6">
                 {[
                   ["Score", selected.score],
-                  ["Est. assets", formatMoney(selected.assets, selected.currency)],
                   ["Email", selected.email || "—"],
                   ["Phone", selected.phone || "—"],
                   ["LinkedIn", selected.linkedinUrl || "—"],
@@ -1356,7 +1465,12 @@ export default function LeadDashboard({
                     ["Fee periodicity", selected.feePeriodicity || "—"],
                     ["Fee based on", selected.feeBasis || "—"],
                     ["Fee payment method", selected.feePaymentMethod || "—"],
+                    ["Fee start date", formatDate(selected.feeStartDate)],
                     ["Next fee review", formatDate(selected.nextFeeReviewDate)],
+                    ["Per calendar year", formatMoney(getAnnualizedFeeValue(selected), selected.currency)],
+                    ["Trailing 12 months (est.)", formatMoney(getFeeRevenueRolling12Months(selected), selected.currency)],
+                    ["Est. revenue since start", formatMoney(getFeeRevenueSinceStart(selected), selected.currency)],
+                    ["Next payment due", (() => { const d = getNextFeeDueDate(selected); return d ? formatDate(d.toISOString()) : "—"; })()],
                   ] : []),
                   ["Trustee", selected.trustee || "—"],
                   ["Risk profile", selected.riskProfile || "—"],
@@ -1446,12 +1560,12 @@ export default function LeadDashboard({
                         </select>
                       </div>
                       <div>
-                        <label style={labelStyle}>Est. assets</label>
-                        <div className="flex gap-2">
-                          <select value={detailsDraft.currency} onChange={(e) => dset("currency", e.target.value)} style={{ ...inputStyle, flex: "0 0 80px" }}>
-                            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                          <input type="number" style={inputStyle} value={detailsDraft.estimated_investable_assets} onChange={(e) => dset("estimated_investable_assets", e.target.value)} />
+                        <label style={labelStyle}>Currency</label>
+                        <select value={detailsDraft.currency} onChange={(e) => dset("currency", e.target.value)} style={inputStyle}>
+                          {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <div style={{ fontSize: 11, color: TOKENS.textFaint, marginTop: 4 }}>
+                          Assets are now entered in the Financial Profile below — Portfolio Value calculates automatically from those.
                         </div>
                       </div>
                       <div>
@@ -1649,11 +1763,55 @@ export default function LeadDashboard({
                                 <option value="deducted_from_portfolio">Deducted from portfolio</option>
                               </select>
                             </div>
-                            <div className="col-span-2">
+                            <div>
+                              <label style={labelStyle}>Fee start date</label>
+                              <input type="date" style={inputStyle} value={detailsDraft.fee_start_date} onChange={(e) => dset("fee_start_date", e.target.value)} />
+                            </div>
+                            <div>
                               <label style={labelStyle}>Next fee review date</label>
                               <input type="date" style={inputStyle} value={detailsDraft.next_fee_review_date} onChange={(e) => dset("next_fee_review_date", e.target.value)} />
                             </div>
                           </div>
+
+                          {(() => {
+                            const draftLead = {
+                              feeAmount: detailsDraft.fee_amount === "" ? null : Number(detailsDraft.fee_amount),
+                              feePeriodicity: detailsDraft.fee_periodicity, feeStartDate: detailsDraft.fee_start_date,
+                            };
+                            const annualized = getAnnualizedFeeValue(draftLead);
+                            const revenueToDate = getFeeRevenueSinceStart(draftLead);
+                            const rolling12 = getFeeRevenueRolling12Months(draftLead);
+                            const nextDue = getNextFeeDueDate(draftLead);
+                            if (annualized == null && revenueToDate == null) return null;
+                            return (
+                              <div className="grid grid-cols-2 gap-3" style={{ marginTop: 12, padding: "10px 12px", background: TOKENS.surface, borderRadius: 6 }}>
+                                {annualized != null && (
+                                  <div>
+                                    <div style={{ fontSize: 11, color: TOKENS.textFaint }}>Per calendar year</div>
+                                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14 }}>{formatMoney(annualized, detailsDraft.currency)}</div>
+                                  </div>
+                                )}
+                                {rolling12 != null && (
+                                  <div>
+                                    <div style={{ fontSize: 11, color: TOKENS.textFaint }}>Trailing 12 months (est.)</div>
+                                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14 }}>{formatMoney(rolling12, detailsDraft.currency)}</div>
+                                  </div>
+                                )}
+                                {revenueToDate != null && (
+                                  <div>
+                                    <div style={{ fontSize: 11, color: TOKENS.textFaint }}>Est. revenue since start</div>
+                                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14 }}>{formatMoney(revenueToDate, detailsDraft.currency)}</div>
+                                  </div>
+                                )}
+                                {nextDue && (
+                                  <div>
+                                    <div style={{ fontSize: 11, color: TOKENS.textFaint }}>Next payment due</div>
+                                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14 }}>{formatDate(nextDue.toISOString())}</div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
 

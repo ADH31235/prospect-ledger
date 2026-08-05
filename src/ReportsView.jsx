@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Clock } from "lucide-react";
+import { Clock, Users, Briefcase, TrendingUp } from "lucide-react";
 import { useStageHistory } from "./useStageHistory";
 import { supabase } from "./supabaseClient";
 import { TOKENS } from "./theme";
@@ -32,6 +32,51 @@ function getPortfolioValue(lead) {
     sumValues(lead.pensions) +
     sumValues(lead.otherInvestments)
   );
+}
+function getNetWorth(lead) {
+  return getPortfolioValue(lead) - (Number(lead.mortgageValue) || 0) - sumValues(lead.otherLiabilities);
+}
+
+const PERIODS_PER_YEAR = { monthly: 12, quarterly: 4, annually: 1, one_off: 0 };
+
+function getAnnualizedFeeValue(lead) {
+  if (!lead.feeAmount || !lead.feePeriodicity) return null;
+  const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
+  if (!periods) return null;
+  return lead.feeAmount * periods;
+}
+function getFeeRevenueSinceStart(lead) {
+  if (!lead.feeStartDate || !lead.feeAmount || !lead.feePeriodicity) return null;
+  const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
+  const start = new Date(lead.feeStartDate);
+  const now = new Date();
+  if (lead.feePeriodicity === "one_off") return start <= now ? lead.feeAmount : 0;
+  if (!periods) return null;
+  const monthsElapsed = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  const periodsElapsed = Math.max(0, Math.floor((monthsElapsed / 12) * periods));
+  return periodsElapsed * lead.feeAmount;
+}
+function getFeeRevenueRolling12Months(lead) {
+  const annual = getAnnualizedFeeValue(lead);
+  if (annual == null || !lead.feeStartDate) return null;
+  const start = new Date(lead.feeStartDate);
+  const now = new Date();
+  const monthsElapsed = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  if (monthsElapsed >= 12) return annual;
+  return Math.max(0, annual * (monthsElapsed / 12));
+}
+function getNextFeeDueDate(lead) {
+  if (!lead.feeStartDate || !lead.feePeriodicity || lead.feePeriodicity === "one_off") return null;
+  const periods = PERIODS_PER_YEAR[lead.feePeriodicity];
+  if (!periods) return null;
+  const monthsPerPeriod = 12 / periods;
+  let next = new Date(lead.feeStartDate);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  while (next < now) {
+    next.setMonth(next.getMonth() + monthsPerPeriod);
+  }
+  return next;
 }
 
 // Buckets lead creation dates into the last N weeks (Monday-start),
@@ -85,6 +130,7 @@ export default function ReportsView({ leads, jurisdictions }) {
     }
   });
 
+  const [reportsTab, setReportsTab] = useState("leads");
   const [dateRange, setDateRange] = useState("all");
   const [jurisdictionFilter, setJurisdictionFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
@@ -305,6 +351,31 @@ export default function ReportsView({ leads, jurisdictions }) {
           </h1>
         </div>
 
+        <div className="flex gap-2 mb-6">
+          {[
+            { key: "leads", label: "Leads", icon: Users },
+            { key: "clients", label: "Clients", icon: Briefcase },
+            { key: "advisor", label: "Advisor", icon: TrendingUp },
+          ].map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setReportsTab(key)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: reportsTab === key ? TOKENS.surface : "none",
+                border: reportsTab === key ? `1px solid ${TOKENS.border}` : "1px solid transparent",
+                borderRadius: 6, cursor: "pointer",
+                padding: "8px 14px", fontSize: 13,
+                color: reportsTab === key ? TOKENS.textPrimary : TOKENS.ivory,
+              }}
+            >
+              <Icon size={14} /> {label}
+            </button>
+          ))}
+        </div>
+
+        {reportsTab === "leads" && (
+        <>
         <div className="flex items-center gap-2 flex-wrap mb-6">
           <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} style={{ background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 6, height: 32, padding: "0 8px", fontSize: 12.5, color: TOKENS.textPrimary }}>
             <option value="all">All time</option>
@@ -658,6 +729,207 @@ export default function ReportsView({ leads, jurisdictions }) {
               </div>
             ))
           )}
+        </div>
+        </>
+        )}
+
+        {reportsTab === "clients" && (
+          <ClientsTab leads={leads} />
+        )}
+
+        {reportsTab === "advisor" && (
+          <AdvisorTab leads={leads} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// CLIENTS TAB — book value across everyone at stage "client":
+// total portfolio value and net worth, a breakdown by asset
+// class, and every client individually sorted by portfolio size.
+// ============================================================
+function ClientsTab({ leads }) {
+  const clients = leads.filter((l) => l.stage === "client");
+
+  const totals = clients.reduce(
+    (acc, c) => {
+      acc.bankAccounts += sumValues(c.bankAccounts);
+      acc.properties += sumValues(c.properties);
+      acc.pensions += sumValues(c.pensions);
+      acc.otherInvestments += sumValues(c.otherInvestments);
+      acc.mortgages += Number(c.mortgageValue) || 0;
+      acc.otherLiabilities += sumValues(c.otherLiabilities);
+      return acc;
+    },
+    { bankAccounts: 0, properties: 0, pensions: 0, otherInvestments: 0, mortgages: 0, otherLiabilities: 0 }
+  );
+  const totalPortfolio = totals.bankAccounts + totals.properties + totals.pensions + totals.otherInvestments;
+  const totalNetWorth = totalPortfolio - totals.mortgages - totals.otherLiabilities;
+  const avgPortfolio = clients.length ? totalPortfolio / clients.length : 0;
+
+  // Assumes a single currency across the book for this simple
+  // summary — matches how the rest of the app currently treats
+  // currency (a per-lead setting, no cross-currency conversion
+  // baked into aggregate views yet).
+  const currency = clients[0]?.currency ?? "GBP";
+
+  const sortedClients = [...clients].sort((a, b) => getPortfolioValue(b) - getPortfolioValue(a));
+
+  return (
+    <div>
+      <div className="grid grid-cols-3 gap-px mb-6" style={{ background: TOKENS.border }}>
+        {[
+          { label: "Clients", value: clients.length },
+          { label: "Total portfolio value", value: formatMoney(totalPortfolio, currency) },
+          { label: "Total net worth", value: formatMoney(totalNetWorth, currency) },
+        ].map((s) => (
+          <div key={s.label} style={{ background: TOKENS.surface, padding: "16px 18px" }}>
+            <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>{s.label}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20 }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+        Book breakdown by asset class
+      </div>
+      <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", marginBottom: 32, background: TOKENS.surface }}>
+        {[
+          { label: "Bank accounts", value: totals.bankAccounts },
+          { label: "Properties", value: totals.properties },
+          { label: "Pensions", value: totals.pensions },
+          { label: "Other investments", value: totals.otherInvestments },
+          { label: "Mortgages (–)", value: totals.mortgages },
+          { label: "Other liabilities (–)", value: totals.otherLiabilities },
+        ].map((row) => {
+          const pct = totalPortfolio ? Math.round((row.value / totalPortfolio) * 100) : 0;
+          return (
+            <div key={row.label} className="flex items-center gap-3" style={{ marginBottom: 10 }}>
+              <div style={{ width: 140, fontSize: 12, color: TOKENS.textMuted, flexShrink: 0 }}>{row.label}</div>
+              <div style={{ flex: 1, background: TOKENS.surfaceRaised, borderRadius: 4, height: 16 }}>
+                <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: "#4C8FDB", borderRadius: 4 }} />
+              </div>
+              <div style={{ width: 110, textAlign: "right", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>{formatMoney(row.value, currency)}</div>
+            </div>
+          );
+        })}
+        <div style={{ fontSize: 11.5, color: TOKENS.textFaint, marginTop: 8 }}>
+          Average portfolio per client: {formatMoney(avgPortfolio, currency)}
+        </div>
+      </div>
+
+      <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+        Clients by portfolio value
+      </div>
+      <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
+        {sortedClients.length === 0 ? (
+          <div style={{ padding: 24, color: TOKENS.textFaint, fontSize: 13, textAlign: "center" }}>No clients yet.</div>
+        ) : (
+          sortedClients.map((c, i) => (
+            <div
+              key={c.id}
+              className="flex items-center justify-between px-4 py-2.5"
+              style={{ background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8", borderBottom: i < sortedClients.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none" }}
+            >
+              <span style={{ fontSize: 13 }}>{c.name}</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>{formatMoney(getPortfolioValue(c), c.currency)}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// ADVISOR TAB — revenue across every client's fee arrangement.
+// Per-calendar-year and trailing-12-months figures are the
+// current annualised rate, not a record of what's already
+// happened. "Est. revenue since start" is the one genuinely
+// retrospective figure, and it's still an estimate — it assumes
+// consistent billing at the current rate since each client's
+// fee_start_date, since actual individual payment events aren't
+// tracked yet.
+// ============================================================
+function AdvisorTab({ leads }) {
+  const clients = leads.filter((l) => l.stage === "client" && l.feeAmount && l.feePeriodicity);
+  const currency = clients[0]?.currency ?? "GBP";
+
+  const totalPerYear = clients.reduce((sum, c) => sum + (getAnnualizedFeeValue(c) || 0), 0);
+  const totalRolling12 = clients.reduce((sum, c) => sum + (getFeeRevenueRolling12Months(c) || 0), 0);
+  const totalSinceStart = clients.reduce((sum, c) => sum + (getFeeRevenueSinceStart(c) || 0), 0);
+  const avgFeePerClient = clients.length ? totalPerYear / clients.length : 0;
+
+  const upcoming = clients
+    .map((c) => ({ lead: c, due: getNextFeeDueDate(c) }))
+    .filter((x) => x.due)
+    .sort((a, b) => a.due - b.due)
+    .slice(0, 10);
+
+  const byBasis = {};
+  for (const c of clients) {
+    const key = c.feeBasis || "Not set";
+    byBasis[key] = (byBasis[key] ?? 0) + 1;
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-4 gap-px mb-6" style={{ background: TOKENS.border }}>
+        {[
+          { label: "Fee-paying clients", value: clients.length },
+          { label: "Per calendar year", value: formatMoney(totalPerYear, currency) },
+          { label: "Trailing 12 months", value: formatMoney(totalRolling12, currency) },
+          { label: "Est. revenue since start", value: formatMoney(totalSinceStart, currency) },
+        ].map((s) => (
+          <div key={s.label} style={{ background: TOKENS.surface, padding: "16px 18px" }}>
+            <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>{s.label}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18 }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontSize: 11.5, color: TOKENS.textFaint, marginTop: -14, marginBottom: 24 }}>
+        Per-calendar-year and trailing-12-months are projections at each client's current fee rate, not confirmed payments. Average fee per client: {formatMoney(avgFeePerClient, currency)}/year.
+      </p>
+
+      <div className="grid grid-cols-2 gap-6">
+        <div>
+          <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+            Upcoming payments due
+          </div>
+          <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
+            {upcoming.length === 0 ? (
+              <div style={{ padding: 20, color: TOKENS.textFaint, fontSize: 12.5, textAlign: "center" }}>Nothing due, or no fee start dates set yet.</div>
+            ) : (
+              upcoming.map(({ lead, due }, i) => (
+                <div key={lead.id} className="flex items-center justify-between px-4 py-2.5" style={{ background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8", borderBottom: i < upcoming.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none" }}>
+                  <span style={{ fontSize: 13 }}>{lead.name}</span>
+                  <span style={{ fontSize: 12.5, color: TOKENS.textMuted }}>
+                    {formatMoney(lead.feeAmount, lead.currency)} · {due.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 12.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+            Fee basis breakdown
+          </div>
+          <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", background: TOKENS.surface }}>
+            {Object.keys(byBasis).length === 0 ? (
+              <div style={{ color: TOKENS.textFaint, fontSize: 12.5 }}>No fee-paying clients yet.</div>
+            ) : (
+              Object.entries(byBasis).map(([basis, count]) => (
+                <div key={basis} className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                  <span style={{ fontSize: 12.5, color: TOKENS.textMuted }}>{basis === "pct_aum" ? "% of AUM" : basis === "fixed" ? "Fixed fee" : basis === "hourly" ? "Hourly" : basis === "retainer" ? "Retainer" : basis}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>{count}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>

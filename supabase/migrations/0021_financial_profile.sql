@@ -49,3 +49,4 @@ alter table leads add column if not exists fee_periodicity text;
 alter table leads add column if not exists fee_basis text;
 alter table leads add column if not exists fee_payment_method text;
 alter table leads add column if not exists next_fee_review_date date;
+alter table leads add column if not exists fee_start_date date;

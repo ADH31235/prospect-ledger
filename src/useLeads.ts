@@ -60,6 +60,7 @@ function mapRow(row: any) {
     feeBasis: row.fee_basis ?? "",
     feePaymentMethod: row.fee_payment_method ?? "",
     nextFeeReviewDate: row.next_fee_review_date ?? null,
+    feeStartDate: row.fee_start_date ?? null,
     riskProfile: row.risk_profile ?? "",
     preferredContactMethod: row.preferred_contact_method ?? "",
     nextFollowUpDate: row.next_follow_up_date ?? null,
