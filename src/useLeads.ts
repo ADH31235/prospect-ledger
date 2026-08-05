@@ -83,8 +83,14 @@ export function useLeads() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchLeads = useCallback(async () => {
-    setLoading(true);
+  const fetchLeads = useCallback(async (isBackgroundRefresh = false) => {
+    // Background refreshes (realtime picking up a change — including
+    // our own saves) must NOT toggle loading. App.tsx unmounts the
+    // entire Ledger while loading is true, which was wiping out
+    // whatever was being actively typed in the edit drawer, on top
+    // of causing a visible flash every time. Only the true initial
+    // mount should show the loading screen.
+    if (!isBackgroundRefresh) setLoading(true);
 
     // Fetch the FULL jurisdictions list independently — this must
     // not depend on leads already existing, or a fresh account with
@@ -154,7 +160,7 @@ export function useLeads() {
         { event: "*", schema: "public", table: "leads" },
         () => {
           clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => fetchLeads(), 600);
+          debounceTimer = setTimeout(() => fetchLeads(true), 600);
         }
       )
       .subscribe();
