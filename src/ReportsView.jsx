@@ -27,6 +27,7 @@ function sumValues(arr) {
 }
 function getTotalAssets(lead) {
   return (
+    (Number(lead.portfolioValue) || 0) +
     sumValues(lead.bankAccounts) +
     sumValues(lead.properties) +
     sumValues(lead.pensions) +
@@ -758,6 +759,7 @@ function ClientsTab({ leads }) {
 
   const totals = clients.reduce(
     (acc, c) => {
+      acc.portfolioValue += Number(c.portfolioValue) || 0;
       acc.bankAccounts += sumValues(c.bankAccounts);
       acc.properties += sumValues(c.properties);
       acc.pensions += sumValues(c.pensions);
@@ -766,9 +768,9 @@ function ClientsTab({ leads }) {
       acc.otherLiabilities += sumValues(c.otherLiabilities);
       return acc;
     },
-    { bankAccounts: 0, properties: 0, pensions: 0, otherInvestments: 0, mortgages: 0, otherLiabilities: 0 }
+    { portfolioValue: 0, bankAccounts: 0, properties: 0, pensions: 0, otherInvestments: 0, mortgages: 0, otherLiabilities: 0 }
   );
-  const totalAssets = totals.bankAccounts + totals.properties + totals.pensions + totals.otherInvestments;
+  const totalAssets = totals.portfolioValue + totals.bankAccounts + totals.properties + totals.pensions + totals.otherInvestments;
   const totalNetWorth = totalAssets - totals.mortgages - totals.otherLiabilities;
 
   // Assumes a single currency across the book for this simple
@@ -832,6 +834,7 @@ function ClientsTab({ leads }) {
       </div>
       <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: "16px 18px", background: TOKENS.surface }}>
         {[
+          { label: "Portfolio value (AUM)", value: totals.portfolioValue },
           { label: "Bank accounts", value: totals.bankAccounts },
           { label: "Properties", value: totals.properties },
           { label: "Pensions", value: totals.pensions },

@@ -142,14 +142,13 @@ function sumValues(arr) {
   return arr.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
 }
 
-// Total assets = every logged asset category added together —
-// the client's whole wealth picture, distinct from portfolio_value
-// (a separate, directly-entered field representing only what's
-// actually invested with the advisor). Not stored — always
-// computed live from its components, so it can never drift out
-// of sync with them.
+// Total assets = everything the client has, including what's
+// invested with the advisor — portfolio_value plus every other
+// logged category. Not stored — always computed live from its
+// components, so it can never drift out of sync with them.
 function getTotalAssets(lead) {
   return (
+    (Number(lead.portfolioValue) || 0) +
     sumValues(lead.bankAccounts) +
     sumValues(lead.properties) +
     sumValues(lead.pensions) +
@@ -1716,6 +1715,7 @@ export default function LeadDashboard({
                             <div style={{ fontSize: 11, color: TOKENS.textFaint }}>Total assets</div>
                             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15 }}>
                               {formatMoney(getTotalAssets({
+                                portfolioValue: detailsDraft.portfolio_value,
                                 bankAccounts: detailsDraft.bank_accounts, properties: detailsDraft.properties,
                                 pensions: detailsDraft.pensions, otherInvestments: detailsDraft.other_investments,
                               }), detailsDraft.currency)}
@@ -1725,6 +1725,7 @@ export default function LeadDashboard({
                             <div style={{ fontSize: 11, color: TOKENS.textFaint }}>Net worth</div>
                             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15 }}>
                               {formatMoney(getNetWorth({
+                                portfolioValue: detailsDraft.portfolio_value,
                                 bankAccounts: detailsDraft.bank_accounts, properties: detailsDraft.properties,
                                 pensions: detailsDraft.pensions, otherInvestments: detailsDraft.other_investments,
                                 mortgageValue: detailsDraft.mortgage_value, otherLiabilities: detailsDraft.other_liabilities,
