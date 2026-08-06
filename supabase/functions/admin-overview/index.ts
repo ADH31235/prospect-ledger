@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
 
     const { data: tenants, error: tenantsErr } = await adminClient
       .from("tenants")
-      .select("id, name, created_at, subscription_status, plan, current_period_end")
+      .select("id, name, created_at, subscription_status, plan, plan_tier, seat_count, current_period_end")
       .order("created_at", { ascending: false });
     if (tenantsErr) throw tenantsErr;
 

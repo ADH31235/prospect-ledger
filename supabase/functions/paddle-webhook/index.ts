@@ -68,13 +68,21 @@ Deno.serve(async (req) => {
       case "subscription.created":
       case "subscription.updated": {
         const tenantId = data.custom_data?.tenant_id;
-        const updates = {
+        const planTier = data.custom_data?.plan_tier;
+        const updates: Record<string, any> = {
           paddle_customer_id: data.customer_id,
           paddle_subscription_id: data.id,
           subscription_status: data.status,
           plan: data.items?.[0]?.price?.id ?? null,
           current_period_end: data.current_billing_period?.ends_at ?? null,
+          seat_count: data.items?.[0]?.quantity ?? 1,
         };
+        // Only set plan_tier if the checkout actually told us which
+        // one was picked — an update event for an existing
+        // subscription (e.g. a payment retry) won't carry this, and
+        // we don't want to accidentally reset an existing tier to
+        // undefined.
+        if (planTier) updates.plan_tier = planTier;
 
         if (tenantId) {
           await supabase.from("tenants").update(updates).eq("id", tenantId);
