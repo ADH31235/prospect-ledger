@@ -37,11 +37,11 @@ const TIER_INFO = {
   enterprise: {
     label: "Enterprise", price: "Custom",
     attrs: {
-      Users: "Priced per user, volume discount",
+      Users: "Priced per user, custom terms",
       "Active leads": "Unlimited",
-      "Compliance workflow": "Full + custom rules",
+      "Compliance workflow": "Full 4-gate system",
       "Sequences & newsletter": "Included",
-      "Fee/revenue analytics": "Multi-office rollup",
+      "Fee/revenue analytics": "Included",
     },
   },
 };

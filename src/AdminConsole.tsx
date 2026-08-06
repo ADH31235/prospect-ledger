@@ -16,9 +16,6 @@ export default function AdminConsole() {
   const [tenants, setTenants] = useState([]);
   const [wipeTarget, setWipeTarget] = useState(null);
   const [actionBusy, setActionBusy] = useState(null); // tenant id currently being acted on
-  const [settingUpPaddle, setSettingUpPaddle] = useState(false);
-  const [paddleSetupResult, setPaddleSetupResult] = useState(null);
-  const [paddleSetupError, setPaddleSetupError] = useState("");
   const [inviteTarget, setInviteTarget] = useState(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
@@ -153,24 +150,6 @@ export default function AdminConsole() {
     setInviteSuccess(false);
   }
 
-  useEffect(() => {
-    handleSetupPaddle(true);
-  }, []);
-
-  async function handleSetupPaddle(silent = false) {
-    setSettingUpPaddle(true);
-    setPaddleSetupError("");
-    try {
-      const { data, error } = await supabase.functions.invoke("setup-subscription-tiers");
-      if (error) throw error;
-      setPaddleSetupResult(data.results);
-    } catch (err) {
-      if (!silent) setPaddleSetupError(err?.message ?? "Couldn't set up Paddle products.");
-    } finally {
-      setSettingUpPaddle(false);
-    }
-  }
-
   const totalLeads = tenants.reduce((sum, t) => sum + (t.lead_count ?? 0), 0);
 
   return (
@@ -184,40 +163,6 @@ export default function AdminConsole() {
             Every company on the platform — visible only to you.
           </p>
         </div>
-
-        {!paddleSetupResult && (
-          <div style={{ background: TOKENS.surface, borderRadius: 10, padding: 20, marginBottom: 24 }}>
-            <div style={{ fontSize: 12, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-              One-time setup
-            </div>
-            <p style={{ fontSize: 13, color: TOKENS.textMuted, marginBottom: 12, lineHeight: 1.6 }}>
-              Creates the Starter and Professional products/prices directly in Paddle. Run this once — you'll need the resulting Price IDs for Vercel's environment variables afterward.
-            </p>
-            <button
-              onClick={() => handleSetupPaddle(false)}
-              disabled={settingUpPaddle}
-              style={{ background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: settingUpPaddle ? 0.6 : 1 }}
-            >
-              {settingUpPaddle ? "Setting up…" : "Set up Paddle products"}
-            </button>
-            {paddleSetupError && <div style={{ color: TOKENS.riskBlocked, fontSize: 12.5, marginTop: 10 }}>{paddleSetupError}</div>}
-          </div>
-        )}
-
-        {paddleSetupResult && (
-          <div style={{ background: TOKENS.surface, borderRadius: 10, padding: 20, marginBottom: 24 }}>
-            <div style={{ fontSize: 12, color: TOKENS.riskLow, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-              Paddle products created
-            </div>
-            <p style={{ fontSize: 12.5, color: TOKENS.textMuted, marginBottom: 12 }}>
-              Copy these Price IDs into Vercel as <code>VITE_PADDLE_STARTER_PRICE_ID</code> and <code>VITE_PADDLE_PROFESSIONAL_PRICE_ID</code>:
-            </p>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, background: TOKENS.surfaceRaised, borderRadius: 6, padding: 12 }}>
-              <div>Starter: {paddleSetupResult.starter?.price_id}</div>
-              <div>Professional: {paddleSetupResult.professional?.price_id}</div>
-            </div>
-          </div>
-        )}
 
         {error ? (
           <div style={{ background: TOKENS.surface, borderRadius: 10, padding: 20, color: TOKENS.riskBlocked, fontSize: 13.5 }}>
