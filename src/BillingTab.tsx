@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CreditCard, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+import { CreditCard, CheckCircle2, RefreshCw, XCircle, Mail } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import { useTenant } from "./useTenant";
 import { TOKENS } from "./theme";
@@ -231,6 +231,27 @@ export default function BillingTab() {
             </div>
             {notifyEmailSaved && <div style={{ color: TOKENS.riskLow, fontSize: 12, marginTop: 8 }}>Saved.</div>}
             {notifyEmailError && <div style={{ color: TOKENS.riskBlocked, fontSize: 12, marginTop: 8 }}>{notifyEmailError}</div>}
+          </div>
+        )}
+
+        {!loading && (
+          <div style={{ background: TOKENS.surface, borderRadius: 10, padding: 24, marginTop: 20 }}>
+            <div style={{ fontSize: 12, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+              Need help?
+            </div>
+            <p style={{ fontSize: 12.5, color: TOKENS.textMuted, marginBottom: 14, lineHeight: 1.6 }}>
+              Questions about your subscription, billing, or account — reach out directly.
+            </p>
+            <a
+              href={`mailto:support@trivaraservices.com?subject=${encodeURIComponent(`Support request — ${tenant?.name ?? "my account"}`)}`}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                background: "none", color: TOKENS.gold, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
+                padding: "9px 16px", fontSize: 13, textDecoration: "none",
+              }}
+            >
+              <Mail size={14} /> Contact admin
+            </a>
           </div>
         )}
       </div>

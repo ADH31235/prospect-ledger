@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Building2, TrendingUp, TrendingDown, Trash2 } from "lucide-react";
+import { Building2, TrendingUp, TrendingDown, Trash2, Ban, Gift, UserPlus } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import { TOKENS } from "./theme";
 
@@ -15,6 +15,14 @@ const STATUS_META = {
 export default function AdminConsole() {
   const [tenants, setTenants] = useState([]);
   const [wipeTarget, setWipeTarget] = useState(null);
+  const [actionBusy, setActionBusy] = useState(null); // tenant id currently being acted on
+  const [inviteTarget, setInviteTarget] = useState(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteRole, setInviteRole] = useState("member");
+  const [inviteSending, setInviteSending] = useState(false);
+  const [inviteError, setInviteError] = useState("");
+  const [inviteSuccess, setInviteSuccess] = useState(false);
   const [wipeConfirmText, setWipeConfirmText] = useState("");
   const [wipeAlsoDeleteTenant, setWipeAlsoDeleteTenant] = useState(false);
   const [wipeCategories, setWipeCategories] = useState(["leads"]);
@@ -86,6 +94,60 @@ export default function AdminConsole() {
     setWipeCategories(["leads"]);
     setWipeError("");
     setWipeResult(null);
+  }
+
+  async function handleCancelSubscription(tenant) {
+    if (!window.confirm(`Cancel ${tenant.name}'s subscription? This is an access override in our own system — if they have a genuine live Paddle subscription, it will keep billing until actually canceled there too.`)) return;
+    setActionBusy(tenant.id);
+    try {
+      const { error } = await supabase.functions.invoke("admin-manage-subscription", { body: { tenant_id: tenant.id, action: "cancel" } });
+      if (error) throw error;
+      await load();
+    } catch (err) {
+      alert(`Couldn't cancel: ${err?.message ?? err}`);
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  async function handleGrantTrial(tenant) {
+    if (!window.confirm(`Grant ${tenant.name} 7 days of full access?`)) return;
+    setActionBusy(tenant.id);
+    try {
+      const { error } = await supabase.functions.invoke("admin-manage-subscription", { body: { tenant_id: tenant.id, action: "grant_trial" } });
+      if (error) throw error;
+      await load();
+    } catch (err) {
+      alert(`Couldn't grant trial: ${err?.message ?? err}`);
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  async function handleInviteUser() {
+    if (!inviteTarget || !inviteEmail.trim()) return;
+    setInviteSending(true);
+    setInviteError("");
+    try {
+      const { error } = await supabase.functions.invoke("admin-invite-user", {
+        body: { tenant_id: inviteTarget.id, email: inviteEmail.trim(), full_name: inviteName.trim(), role: inviteRole },
+      });
+      if (error) throw error;
+      setInviteSuccess(true);
+    } catch (err) {
+      setInviteError(err?.message ?? "Couldn't send invite.");
+    } finally {
+      setInviteSending(false);
+    }
+  }
+
+  function closeInviteDialog() {
+    setInviteTarget(null);
+    setInviteEmail("");
+    setInviteName("");
+    setInviteRole("member");
+    setInviteError("");
+    setInviteSuccess(false);
   }
 
   const totalLeads = tenants.reduce((sum, t) => sum + (t.lead_count ?? 0), 0);
@@ -243,7 +305,7 @@ export default function AdminConsole() {
             <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
               <div
                 className="grid px-4 py-2.5"
-                style={{ gridTemplateColumns: "2fr 1fr 1fr 0.8fr 0.8fr 1fr", gap: 12, background: "#F4F1E8", borderBottom: `1px solid ${TOKENS.border}` }}
+                style={{ gridTemplateColumns: "2fr 1fr 1fr 0.8fr 0.8fr 1fr 1.4fr", gap: 12, background: "#F4F1E8", borderBottom: `1px solid ${TOKENS.border}` }}
               >
                 {["Company", "Status", "Plan", "Users", "Leads", "Joined", ""].map((h) => (
                   <div key={h} style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: TOKENS.textFaint }}>{h}</div>
@@ -262,7 +324,7 @@ export default function AdminConsole() {
                       key={t.id}
                       className="grid items-center px-4"
                       style={{
-                        gridTemplateColumns: "2fr 1fr 1fr 0.8fr 0.8fr 1fr 0.5fr", gap: 12, padding: "10px 16px",
+                        gridTemplateColumns: "2fr 1fr 1fr 0.8fr 0.8fr 1fr 1.4fr", gap: 12, padding: "10px 16px",
                         background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8",
                         borderBottom: i < tenants.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
                       }}
@@ -288,7 +350,31 @@ export default function AdminConsole() {
                       <div style={{ fontSize: 12.5, color: TOKENS.textMuted }}>
                         {new Date(t.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
                       </div>
-                      <div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setInviteTarget(t)}
+                          title="Invite a user to this company"
+                          disabled={actionBusy === t.id}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.textMuted, display: "flex" }}
+                        >
+                          <UserPlus size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleGrantTrial(t)}
+                          title="Grant 7-day trial access"
+                          disabled={actionBusy === t.id}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.riskReview, display: "flex" }}
+                        >
+                          <Gift size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleCancelSubscription(t)}
+                          title="Cancel subscription (access override)"
+                          disabled={actionBusy === t.id}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.textMuted, display: "flex" }}
+                        >
+                          <Ban size={14} />
+                        </button>
                         <button
                           onClick={() => setWipeTarget(t)}
                           title="Clear or delete this company's data"
@@ -402,6 +488,76 @@ export default function AdminConsole() {
                     }}
                   >
                     {wiping ? "Working…" : wipeAlsoDeleteTenant ? "Delete everything" : "Clear selected"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {inviteTarget && (
+        <div
+          onClick={closeInviteDialog}
+          style={{ position: "fixed", inset: 0, background: "rgba(6,9,13,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 380, maxWidth: "90vw", background: TOKENS.surface, borderRadius: 10, padding: 24 }}
+          >
+            {inviteSuccess ? (
+              <>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>Invite sent</div>
+                <p style={{ fontSize: 13, color: TOKENS.textMuted, marginBottom: 16 }}>
+                  {inviteEmail} will receive an email to set their password and join {inviteTarget.name}.
+                </p>
+                <button onClick={closeInviteDialog} style={{ width: "100%", background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  Close
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>
+                  Invite a user to {inviteTarget.name}
+                </div>
+                <p style={{ fontSize: 12.5, color: TOKENS.textMuted, marginBottom: 14 }}>
+                  They'll get an email with a link to set their own password and start using this company's account.
+                </p>
+                <label style={{ fontSize: 11.5, color: TOKENS.textFaint, display: "block", marginBottom: 4 }}>Email</label>
+                <input
+                  type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
+                  style={{ width: "100%", background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "8px 10px", fontSize: 13, color: TOKENS.textPrimary, marginBottom: 12 }}
+                />
+                <label style={{ fontSize: 11.5, color: TOKENS.textFaint, display: "block", marginBottom: 4 }}>Full name (optional)</label>
+                <input
+                  value={inviteName} onChange={(e) => setInviteName(e.target.value)}
+                  style={{ width: "100%", background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "8px 10px", fontSize: 13, color: TOKENS.textPrimary, marginBottom: 12 }}
+                />
+                <label style={{ fontSize: 11.5, color: TOKENS.textFaint, display: "block", marginBottom: 4 }}>Role</label>
+                <select
+                  value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}
+                  style={{ width: "100%", background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "8px 10px", fontSize: 13, color: TOKENS.textPrimary, marginBottom: 16 }}
+                >
+                  <option value="member">Member</option>
+                  <option value="admin">Admin (within their company)</option>
+                </select>
+
+                {inviteError && <div style={{ color: TOKENS.riskBlocked, fontSize: 12.5, marginBottom: 12 }}>{inviteError}</div>}
+
+                <div className="flex gap-2">
+                  <button onClick={closeInviteDialog} style={{ flex: 1, background: "none", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "9px 0", fontSize: 13, cursor: "pointer" }}>
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleInviteUser}
+                    disabled={inviteSending || !inviteEmail.trim()}
+                    style={{
+                      flex: 1, background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
+                      padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                      opacity: inviteSending || !inviteEmail.trim() ? 0.5 : 1,
+                    }}
+                  >
+                    {inviteSending ? "Sending…" : "Send invite"}
                   </button>
                 </div>
               </>
