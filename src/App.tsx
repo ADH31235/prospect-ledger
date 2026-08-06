@@ -37,10 +37,19 @@ function AuthenticatedApp() {
   // purely for UI messaging (showing the right prompt); the real
   // enforcement happens at the RLS level, so this can't be bypassed
   // by editing the frontend.
+  const isOnTrialGrant = !!tenant?.trial_access_until && new Date(tenant.trial_access_until) >= new Date();
   const hasActiveAccess = !!tenant && (
     tenant.subscription_status === "active" ||
     tenant.subscription_status === "trialing" ||
-    (tenant.trial_access_until && new Date(tenant.trial_access_until) >= new Date())
+    isOnTrialGrant
+  );
+  // Starter gets the Ledger and basic jurisdiction-based compliance
+  // gating only — sequences, newsletter, webinars, content, deal
+  // signals, and fee/revenue analytics all need Professional+. An
+  // admin-granted trial shows the full product regardless of tier,
+  // since the whole point is demonstrating everything.
+  const hasProfessionalTier = isOnTrialGrant || (
+    hasActiveAccess && (tenant?.plan_tier === "professional" || tenant?.plan_tier === "enterprise")
   );
   const {
     leads, jurisdictions, loading, error,
@@ -146,12 +155,12 @@ function AuthenticatedApp() {
           )
         )}
         {view === "compliance" && (hasActiveAccess ? <ComplianceReview /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
-        {view === "newsletter" && (hasActiveAccess ? <NewsletterAdmin /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
-        {view === "deals" && (hasActiveAccess ? <DealSignals jurisdictions={jurisdictions} onAddLead={addLead} /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
-        {view === "sequences" && (hasActiveAccess ? <SequencesOverview getAllEnrollments={getAllEnrollments} onStopEnrollment={stopEnrollment} /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
-        {view === "reports" && (hasActiveAccess ? <ReportsView leads={leads} jurisdictions={jurisdictions} /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
-        {view === "webinars" && (hasActiveAccess ? <WebinarsAdmin /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
-        {view === "content" && (hasActiveAccess ? <ContentLibrary /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
+        {view === "newsletter" && (hasProfessionalTier ? <NewsletterAdmin /> : <SubscribeGate onGoToBilling={() => setView("billing")} requiresProfessional={hasActiveAccess} />)}
+        {view === "deals" && (hasProfessionalTier ? <DealSignals jurisdictions={jurisdictions} onAddLead={addLead} /> : <SubscribeGate onGoToBilling={() => setView("billing")} requiresProfessional={hasActiveAccess} />)}
+        {view === "sequences" && (hasProfessionalTier ? <SequencesOverview getAllEnrollments={getAllEnrollments} onStopEnrollment={stopEnrollment} /> : <SubscribeGate onGoToBilling={() => setView("billing")} requiresProfessional={hasActiveAccess} />)}
+        {view === "reports" && (hasProfessionalTier ? <ReportsView leads={leads} jurisdictions={jurisdictions} /> : <SubscribeGate onGoToBilling={() => setView("billing")} requiresProfessional={hasActiveAccess} />)}
+        {view === "webinars" && (hasProfessionalTier ? <WebinarsAdmin /> : <SubscribeGate onGoToBilling={() => setView("billing")} requiresProfessional={hasActiveAccess} />)}
+        {view === "content" && (hasProfessionalTier ? <ContentLibrary /> : <SubscribeGate onGoToBilling={() => setView("billing")} requiresProfessional={hasActiveAccess} />)}
         {view === "billing" && <BillingTab />}
         {view === "admin" && isPlatformAdmin && <AdminConsole />}
       </div>
@@ -177,16 +186,18 @@ function ProtectedApp() {
 // level (RLS), so even if someone bypassed this screen entirely,
 // the underlying data would still refuse reads/writes.
 // ============================================================
-function SubscribeGate({ onGoToBilling }: { onGoToBilling: () => void }) {
+function SubscribeGate({ onGoToBilling, requiresProfessional = false }: { onGoToBilling: () => void; requiresProfessional?: boolean }) {
   return (
     <div style={{ background: TOKENS.bg, minHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: TOKENS.surface, borderRadius: 10, padding: 32, maxWidth: 380, textAlign: "center" }}>
         <Lock size={28} color={TOKENS.textFaint} style={{ margin: "0 auto 14px" }} />
         <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 18, color: TOKENS.textPrimary, marginBottom: 8 }}>
-          Subscribe to unlock this
+          {requiresProfessional ? "Upgrade to Professional" : "Subscribe to unlock this"}
         </div>
         <p style={{ fontSize: 13, color: TOKENS.textMuted, lineHeight: 1.6, marginBottom: 20 }}>
-          This section needs an active subscription. Your Ledger stays visible in the meantime, just without the ability to add or change anything.
+          {requiresProfessional
+            ? "This is part of the Professional plan — sequences, newsletter, webinars, content, deal signals, and fee analytics."
+            : "This section needs an active subscription. Your Ledger stays visible in the meantime, just without the ability to add or change anything."}
         </p>
         <button
           onClick={onGoToBilling}

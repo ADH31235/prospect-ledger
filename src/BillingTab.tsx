@@ -8,8 +8,15 @@ import { TOKENS } from "./theme";
 // near frontend code, only these two, which Paddle's own docs
 // confirm are safe to expose in the browser.
 const PADDLE_CLIENT_TOKEN = import.meta.env.VITE_PADDLE_CLIENT_TOKEN;
-const PADDLE_PRICE_ID = import.meta.env.VITE_PADDLE_PRICE_ID || "pri_01kz60a6vjx7e84sd49xsv0ggm";
 const PADDLE_ENVIRONMENT = import.meta.env.VITE_PADDLE_ENVIRONMENT || "sandbox";
+const TIER_PRICE_IDS = {
+  starter: import.meta.env.VITE_PADDLE_STARTER_PRICE_ID,
+  professional: import.meta.env.VITE_PADDLE_PROFESSIONAL_PRICE_ID,
+};
+const TIER_INFO = {
+  starter: { label: "Starter", price: "$49/user/mo", blurb: "Ledger and basic jurisdiction-based compliance gating." },
+  professional: { label: "Professional", price: "$79/user/mo", blurb: "Full compliance workflow, sequences, newsletter, webinars, content library, and fee/revenue analytics." },
+};
 
 const STATUS_META = {
   none: { label: "No active subscription", color: TOKENS.textFaint },
@@ -42,6 +49,7 @@ export default function BillingTab() {
   const { tenant, loading, refetch } = useTenant();
   const [checkoutOpening, setCheckoutOpening] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
+  const [seatCount, setSeatCount] = useState(1);
   const [canceling, setCanceling] = useState(false);
   const [cancelError, setCancelError] = useState("");
   const [cancelRequested, setCancelRequested] = useState(false);
@@ -90,9 +98,14 @@ export default function BillingTab() {
     }
   }
 
-  async function handleSubscribe() {
+  async function handleSubscribe(tier) {
     if (!PADDLE_CLIENT_TOKEN) {
       setCheckoutError("Checkout isn't configured yet — missing Paddle client token.");
+      return;
+    }
+    const priceId = TIER_PRICE_IDS[tier];
+    if (!priceId) {
+      setCheckoutError(`Checkout isn't configured yet for ${TIER_INFO[tier].label} — missing its Price ID.`);
       return;
     }
     setCheckoutOpening(true);
@@ -102,8 +115,8 @@ export default function BillingTab() {
       Paddle.Environment.set(PADDLE_ENVIRONMENT);
       Paddle.Initialize({ token: PADDLE_CLIENT_TOKEN });
       Paddle.Checkout.open({
-        items: [{ priceId: PADDLE_PRICE_ID, quantity: 1 }],
-        customData: { tenant_id: tenant?.id },
+        items: [{ priceId, quantity: seatCount }],
+        customData: { tenant_id: tenant?.id, plan_tier: tier },
       });
     } catch (err) {
       setCheckoutError(err?.message ?? "Couldn't open checkout — please try again.");
@@ -161,6 +174,12 @@ export default function BillingTab() {
               </div>
             )}
 
+            {isActive && tenant?.plan_tier && (
+              <div style={{ fontSize: 13, color: TOKENS.textMuted, marginBottom: 16 }}>
+                {TIER_INFO[tenant.plan_tier]?.label ?? tenant.plan_tier} — {tenant.seat_count ?? 1} seat{(tenant.seat_count ?? 1) === 1 ? "" : "s"}
+              </div>
+            )}
+
             {isActive && !cancelRequested && (
               <>
                 <button
@@ -187,20 +206,47 @@ export default function BillingTab() {
             {!isActive && (
               <>
                 <p style={{ fontSize: 13.5, color: TOKENS.textMuted, marginBottom: 16, lineHeight: 1.6 }}>
-                  Subscribe to unlock full access for your workspace.
+                  Choose a plan to unlock full access for your workspace.
                 </p>
-                <button
-                  onClick={handleSubscribe}
-                  disabled={checkoutOpening}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 8,
-                    background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
-                    padding: "10px 18px", fontSize: 13.5, fontWeight: 600, cursor: "pointer",
-                    opacity: checkoutOpening ? 0.6 : 1,
-                  }}
-                >
-                  <CreditCard size={15} /> {checkoutOpening ? "Opening…" : "Subscribe"}
-                </button>
+
+                <div className="flex items-center gap-2 mb-4">
+                  <label style={{ fontSize: 12.5, color: TOKENS.textMuted }}>Seats</label>
+                  <input
+                    type="number" min="1" max="50" value={seatCount}
+                    onChange={(e) => setSeatCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    style={{ width: 60, background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "6px 8px", fontSize: 13, color: TOKENS.textPrimary }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {Object.entries(TIER_INFO).map(([tier, info]) => (
+                    <div key={tier} style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: 16 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{info.label}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: TOKENS.textMuted, marginBottom: 8 }}>{info.price}</div>
+                      <p style={{ fontSize: 11.5, color: TOKENS.textFaint, marginBottom: 12, lineHeight: 1.5 }}>{info.blurb}</p>
+                      <button
+                        onClick={() => handleSubscribe(tier)}
+                        disabled={checkoutOpening}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%",
+                          background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
+                          padding: "8px 0", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                          opacity: checkoutOpening ? 0.6 : 1,
+                        }}
+                      >
+                        <CreditCard size={13} /> {checkoutOpening ? "Opening…" : `Subscribe (${seatCount} seat${seatCount === 1 ? "" : "s"})`}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ fontSize: 12, color: TOKENS.textFaint }}>
+                  Larger team or need custom terms?{" "}
+                  <a href={`mailto:support@trivaraservices.com?subject=${encodeURIComponent(`Enterprise plan — ${tenant?.name ?? "my account"}`)}`} style={{ color: TOKENS.gold }}>
+                    Contact us about Enterprise
+                  </a>
+                </div>
+
                 {checkoutError && <div style={{ color: TOKENS.riskBlocked, fontSize: 12.5, marginTop: 10 }}>{checkoutError}</div>}
               </>
             )}
