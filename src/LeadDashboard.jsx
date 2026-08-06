@@ -279,6 +279,16 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function getAge(dob) {
+  if (!dob) return null;
+  const birth = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
 function Seal({ risk, size = 30 }) {
   const meta = RISK_META[risk];
   const Icon = meta.icon;
@@ -1365,10 +1375,12 @@ export default function LeadDashboard({
 
         {/* Table */}
         <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, overflow: "hidden", background: TOKENS.surface }}>
+        <div style={{ overflowX: "auto" }}>
+          <div style={{ minWidth: 1500 }}>
           <div
             className="grid items-center px-4 py-2.5"
             style={{
-              gridTemplateColumns: "24px 28px 2fr 1.3fr 1fr 1fr 1fr 0.9fr",
+              gridTemplateColumns: "24px 28px 1.7fr 1.1fr 1.1fr 0.6fr 0.9fr 1fr 1fr 1fr 0.6fr 0.9fr",
               gap: 12,
               background: TOKENS.surfaceRaised,
               borderBottom: `1px solid ${TOKENS.border}`,
@@ -1389,8 +1401,12 @@ export default function LeadDashboard({
             <div />
             <SortHeader label="Prospect" sortK="name" />
             <SortHeader label="Jurisdiction" sortK="jurisdiction" />
+            <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: TOKENS.textFaint }}>Co. of residence</div>
+            <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: TOKENS.textFaint }}>Age</div>
             <SortHeader label="Stage" sortK="stage" />
             <SortHeader label="Portfolio value" sortK="assets" />
+            <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: TOKENS.textFaint }}>Risk profile</div>
+            <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: TOKENS.textFaint }}>Scheme type</div>
             <SortHeader label="Score" sortK="score" />
             <SortHeader label="Last contact" sortK="lastContact" />
           </div>
@@ -1404,7 +1420,7 @@ export default function LeadDashboard({
                 onClick={() => setSelectedId(lead.id)}
                 className="grid items-center px-4 cursor-pointer"
                 style={{
-                  gridTemplateColumns: "24px 28px 2fr 1.3fr 1fr 1fr 1fr 0.9fr",
+                  gridTemplateColumns: "24px 28px 1.7fr 1.1fr 1.1fr 0.6fr 0.9fr 1fr 1fr 1fr 0.6fr 0.9fr",
                   gap: 12,
                   padding: "12px 16px",
                   background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8",
@@ -1460,6 +1476,8 @@ export default function LeadDashboard({
                   <div style={{ fontSize: 13 }}>{j.country}</div>
                   <div style={{ fontSize: 11, color: TOKENS.textFaint }}>{j.license ?? "unlicensed market"}</div>
                 </div>
+                <div style={{ fontSize: 12.5, color: TOKENS.textMuted }}>{lead.countryOfResidence || "—"}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>{getAge(lead.dateOfBirth) ?? "—"}</div>
                 <div>
                   <span
                     style={{
@@ -1473,6 +1491,8 @@ export default function LeadDashboard({
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
                   {formatMoney(lead.portfolioValue, lead.currency)}
                 </div>
+                <div style={{ fontSize: 12.5, color: TOKENS.textMuted }}>{lead.riskProfile || "—"}</div>
+                <div style={{ fontSize: 12.5, color: TOKENS.textMuted }}>{lead.currentProviderSchemeType || "—"}</div>
                 <ScoreBar score={lead.score} />
                 <div style={{ fontSize: 12.5, color: TOKENS.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
                   <Clock size={12} color={TOKENS.textFaint} />
@@ -1487,6 +1507,8 @@ export default function LeadDashboard({
               No prospects match these filters.
             </div>
           )}
+          </div>
+          </div>
         </div>
       </div>
 
