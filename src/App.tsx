@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Routes, Route } from "react-router-dom";
-import { BookOpen, ShieldCheck, Mail, TrendingUp, Send, BarChart3, Video, FileStack, CreditCard, Shield } from "lucide-react";
+import { BookOpen, ShieldCheck, Mail, TrendingUp, Send, BarChart3, Video, FileStack, CreditCard, Shield, Lock } from "lucide-react";
 import LeadDashboard from "./LeadDashboard";
 import ComplianceReview from "./ComplianceReview";
 import NewsletterAdmin from "./NewsletterAdmin";
@@ -14,6 +14,7 @@ import ProvisionGate from "./ProvisionGate";
 import BillingTab from "./BillingTab";
 import AdminConsole from "./AdminConsole";
 import { useIsPlatformAdmin } from "./useIsPlatformAdmin";
+import { useTenant } from "./useTenant";
 import SignupPage from "./SignupPage";
 import ResetPasswordPage from "./ResetPasswordPage";
 import SubscribePage from "./SubscribePage";
@@ -31,6 +32,16 @@ import { LogOut } from "lucide-react";
 function AuthenticatedApp() {
   const [view, setView] = useState<"ledger" | "compliance" | "newsletter" | "deals" | "sequences" | "reports" | "webinars" | "content" | "billing" | "admin">("ledger");
   const { isPlatformAdmin } = useIsPlatformAdmin();
+  const { tenant } = useTenant();
+  // Mirrors has_active_access() in the database — this copy is
+  // purely for UI messaging (showing the right prompt); the real
+  // enforcement happens at the RLS level, so this can't be bypassed
+  // by editing the frontend.
+  const hasActiveAccess = !!tenant && (
+    tenant.subscription_status === "active" ||
+    tenant.subscription_status === "trialing" ||
+    (tenant.trial_access_until && new Date(tenant.trial_access_until) >= new Date())
+  );
   const {
     leads, jurisdictions, loading, error,
     updateStage, updateNotes, addLead, deleteLead, addJurisdiction, bulkAddLeads, updateLeadDetails,
@@ -75,7 +86,22 @@ function AuthenticatedApp() {
         ))}
 
         <button
-          onClick={() => supabase.auth.signOut()}
+          onClick={() => {
+            // These are meant to persist across tab switches within
+            // a session, not indefinitely — clearing them here means
+            // the next person to sign in (or the same person next
+            // time) starts from a clean slate rather than inheriting
+            // whatever filters were left on.
+            [
+              "ledger_filter_query", "ledger_filter_stage", "ledger_filter_risk",
+              "ledger_filter_jurisdiction", "ledger_filter_source", "ledger_filter_networth",
+              "ledger_filter_advisor", "ledger_filter_minassets", "ledger_filter_maxassets",
+              "ledger_filter_minscore", "ledger_filter_linkedin",
+              "ledger_sort_key", "ledger_sort_dir",
+              "ledger_assets_display_currency", "ledger_assets_manual_rates",
+            ].forEach((k) => localStorage.removeItem(k));
+            supabase.auth.signOut();
+          }}
           title="Sign out"
           style={{
             display: "flex", alignItems: "center", gap: 6,
@@ -101,6 +127,7 @@ function AuthenticatedApp() {
             <LeadDashboard
               leads={leads}
               jurisdictions={jurisdictions}
+              readOnly={!hasActiveAccess}
               onUpdateStage={updateStage}
               onUpdateNotes={updateNotes}
               onAddLead={addLead}
@@ -118,13 +145,13 @@ function AuthenticatedApp() {
             />
           )
         )}
-        {view === "compliance" && <ComplianceReview />}
-        {view === "newsletter" && <NewsletterAdmin />}
-        {view === "deals" && <DealSignals jurisdictions={jurisdictions} onAddLead={addLead} />}
-        {view === "sequences" && <SequencesOverview getAllEnrollments={getAllEnrollments} onStopEnrollment={stopEnrollment} />}
-        {view === "reports" && <ReportsView leads={leads} jurisdictions={jurisdictions} />}
-        {view === "webinars" && <WebinarsAdmin />}
-        {view === "content" && <ContentLibrary />}
+        {view === "compliance" && (hasActiveAccess ? <ComplianceReview /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
+        {view === "newsletter" && (hasActiveAccess ? <NewsletterAdmin /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
+        {view === "deals" && (hasActiveAccess ? <DealSignals jurisdictions={jurisdictions} onAddLead={addLead} /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
+        {view === "sequences" && (hasActiveAccess ? <SequencesOverview getAllEnrollments={getAllEnrollments} onStopEnrollment={stopEnrollment} /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
+        {view === "reports" && (hasActiveAccess ? <ReportsView leads={leads} jurisdictions={jurisdictions} /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
+        {view === "webinars" && (hasActiveAccess ? <WebinarsAdmin /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
+        {view === "content" && (hasActiveAccess ? <ContentLibrary /> : <SubscribeGate onGoToBilling={() => setView("billing")} />)}
         {view === "billing" && <BillingTab />}
         {view === "admin" && isPlatformAdmin && <AdminConsole />}
       </div>
@@ -140,6 +167,35 @@ function ProtectedApp() {
     <ProvisionGate session={session}>
       <AuthenticatedApp />
     </ProvisionGate>
+  );
+}
+
+// ============================================================
+// Shown in place of any gated tab's content when a tenant doesn't
+// have an active subscription (or admin-granted trial). This is
+// purely a UX message — the actual enforcement is at the database
+// level (RLS), so even if someone bypassed this screen entirely,
+// the underlying data would still refuse reads/writes.
+// ============================================================
+function SubscribeGate({ onGoToBilling }: { onGoToBilling: () => void }) {
+  return (
+    <div style={{ background: TOKENS.bg, minHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: TOKENS.surface, borderRadius: 10, padding: 32, maxWidth: 380, textAlign: "center" }}>
+        <Lock size={28} color={TOKENS.textFaint} style={{ margin: "0 auto 14px" }} />
+        <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 18, color: TOKENS.textPrimary, marginBottom: 8 }}>
+          Subscribe to unlock this
+        </div>
+        <p style={{ fontSize: 13, color: TOKENS.textMuted, lineHeight: 1.6, marginBottom: 20 }}>
+          This section needs an active subscription. Your Ledger stays visible in the meantime, just without the ability to add or change anything.
+        </p>
+        <button
+          onClick={onGoToBilling}
+          style={{ background: TOKENS.gold, color: "#FFFFFF", border: "none", borderRadius: 6, padding: "10px 20px", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}
+        >
+          Go to Billing
+        </button>
+      </div>
+    </div>
   );
 }
 

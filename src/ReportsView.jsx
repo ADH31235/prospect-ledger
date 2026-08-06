@@ -103,6 +103,13 @@ function getNextFeeDueDate(lead) {
   }
   return next;
 }
+function getUpfrontFeeValue(lead) {
+  if (!lead.upfrontFeeAmount) return null;
+  if (lead.upfrontFeeBasis === "pct_aum") {
+    return (Number(lead.portfolioValue) || 0) * (lead.upfrontFeeAmount / 100);
+  }
+  return lead.upfrontFeeAmount;
+}
 
 
 // Buckets lead creation dates into the last N weeks (Monday-start),
@@ -902,6 +909,20 @@ function AdvisorTab({ leads }) {
   const totalSinceStart = clients.reduce((sum, c) => sum + (getFeeRevenueSinceStart(c) || 0), 0);
   const avgFeePerClient = clients.length ? totalPerYear / clients.length : 0;
 
+  // Upfront fees are a genuinely separate pool — not every client
+  // with a recurring fee has one, and some clients might only
+  // have an upfront fee. Only counts ones actually marked paid —
+  // this is real, not a projection.
+  const allClients = leads.filter((l) => l.stage === "client");
+  const upfrontCollected = allClients.reduce((sum, c) => {
+    if (!c.upfrontFeePaidDate) return sum;
+    return sum + (getUpfrontFeeValue(c) || 0);
+  }, 0);
+  const upfrontPending = allClients.reduce((sum, c) => {
+    if (c.upfrontFeePaidDate || !c.upfrontFeeAmount) return sum;
+    return sum + (getUpfrontFeeValue(c) || 0);
+  }, 0);
+
   const upcoming = clients
     .map((c) => ({ lead: c, due: getNextFeeDueDate(c) }))
     .filter((x) => x.due)
@@ -916,7 +937,7 @@ function AdvisorTab({ leads }) {
 
   return (
     <div>
-      <div className="grid grid-cols-4 gap-px mb-6" style={{ background: TOKENS.border }}>
+      <div className="grid grid-cols-4 gap-px mb-3" style={{ background: TOKENS.border }}>
         {[
           { label: "Fee-paying clients", value: clients.length },
           { label: "Per calendar year", value: formatFeeMoney(totalPerYear, currency) },
@@ -929,8 +950,18 @@ function AdvisorTab({ leads }) {
           </div>
         ))}
       </div>
+      <div className="grid grid-cols-2 gap-px mb-6" style={{ background: TOKENS.border }}>
+        <div style={{ background: TOKENS.surface, padding: "16px 18px" }}>
+          <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Upfront fees collected</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18, color: TOKENS.riskLow }}>{formatFeeMoney(upfrontCollected, currency)}</div>
+        </div>
+        <div style={{ background: TOKENS.surface, padding: "16px 18px" }}>
+          <div style={{ fontSize: 11, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Upfront fees pending</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18, color: TOKENS.riskReview }}>{formatFeeMoney(upfrontPending, currency)}</div>
+        </div>
+      </div>
       <p style={{ fontSize: 11.5, color: TOKENS.textFaint, marginTop: -14, marginBottom: 24 }}>
-        Per-calendar-year and trailing-12-months are projections at each client's current fee rate, not confirmed payments. Average fee per client: {formatFeeMoney(avgFeePerClient, currency)}/year.
+        Per-calendar-year and trailing-12-months are projections at each client's current fee rate, not confirmed payments. Upfront fees "collected" is real — only counts ones marked with a paid date. Average fee per client: {formatFeeMoney(avgFeePerClient, currency)}/year.
       </p>
 
       <div className="grid grid-cols-2 gap-6">

@@ -59,3 +59,12 @@ alter table leads add column if not exists fee_basis text;
 alter table leads add column if not exists fee_payment_method text;
 alter table leads add column if not exists next_fee_review_date date;
 alter table leads add column if not exists fee_start_date date;
+
+-- Upfront fee — a one-time charge, separate from the recurring
+-- fee above. paid_date is deliberately distinct from "start
+-- date": this is an actual event you'd mark once it happens,
+-- not a projection, so revenue from it is real rather than
+-- estimated.
+alter table leads add column if not exists upfront_fee_amount numeric;
+alter table leads add column if not exists upfront_fee_basis text; -- 'pct_aum' or 'flat'
+alter table leads add column if not exists upfront_fee_paid_date date;

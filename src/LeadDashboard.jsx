@@ -259,6 +259,17 @@ function getNextFeeDueDate(lead) {
   return next;
 }
 
+// The upfront fee's actual value — % of AUM or a flat amount.
+// Unlike the recurring-fee estimates above, "paid" here is a real
+// recorded fact (upfront_fee_paid_date), not a projection.
+function getUpfrontFeeValue(lead) {
+  if (!lead.upfrontFeeAmount) return null;
+  if (lead.upfrontFeeBasis === "pct_aum") {
+    return (Number(lead.portfolioValue) || 0) * (lead.upfrontFeeAmount / 100);
+  }
+  return lead.upfrontFeeAmount;
+}
+
 function formatDate(d) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -373,6 +384,7 @@ function RepeatableValueList({ items, onChange, labelField, labelPlaceholder, va
 export default function LeadDashboard({
   leads: leadsProp,
   jurisdictions = JURISDICTIONS, // default keeps standalone preview working unchanged
+  readOnly = false,
   onUpdateStage,
   onUpdateNotes,
   onAddLead,
@@ -421,17 +433,34 @@ export default function LeadDashboard({
   const [bulkJurisdictionId, setBulkJurisdictionId] = useState("");
   const [bulkWorking, setBulkWorking] = useState(false);
 
-  const [query, setQuery] = useState("");
-  const [stageFilter, setStageFilter] = useState("all");
-  const [riskFilter, setRiskFilter] = useState("all");
-  const [jurisdictionFilter, setJurisdictionFilter] = useState("all");
-  const [sourceFilter, setSourceFilter] = useState("all");
-  const [netWorthFilter, setNetWorthFilter] = useState("all");
-  const [existingAdvisorFilter, setExistingAdvisorFilter] = useState("all");
-  const [minAssets, setMinAssets] = useState("");
-  const [maxAssets, setMaxAssets] = useState("");
-  const [minScore, setMinScore] = useState("");
-  const [linkedinFilter, setLinkedinFilter] = useState("all");
+  const [query, setQuery] = useState(() => localStorage.getItem("ledger_filter_query") || "");
+  const [stageFilter, setStageFilter] = useState(() => localStorage.getItem("ledger_filter_stage") || "all");
+  const [riskFilter, setRiskFilter] = useState(() => localStorage.getItem("ledger_filter_risk") || "all");
+  const [jurisdictionFilter, setJurisdictionFilter] = useState(() => localStorage.getItem("ledger_filter_jurisdiction") || "all");
+  const [sourceFilter, setSourceFilter] = useState(() => localStorage.getItem("ledger_filter_source") || "all");
+  const [netWorthFilter, setNetWorthFilter] = useState(() => localStorage.getItem("ledger_filter_networth") || "all");
+  const [existingAdvisorFilter, setExistingAdvisorFilter] = useState(() => localStorage.getItem("ledger_filter_advisor") || "all");
+  const [minAssets, setMinAssets] = useState(() => localStorage.getItem("ledger_filter_minassets") || "");
+  const [maxAssets, setMaxAssets] = useState(() => localStorage.getItem("ledger_filter_maxassets") || "");
+  const [minScore, setMinScore] = useState(() => localStorage.getItem("ledger_filter_minscore") || "");
+  const [linkedinFilter, setLinkedinFilter] = useState(() => localStorage.getItem("ledger_filter_linkedin") || "all");
+
+  // Persist every filter change — but deliberately NOT indefinitely:
+  // App.tsx clears all of these specific keys on sign-out, so
+  // filters survive switching tabs within a session but reset for
+  // the next person (or the next session) rather than lingering
+  // forever.
+  useEffect(() => { localStorage.setItem("ledger_filter_query", query); }, [query]);
+  useEffect(() => { localStorage.setItem("ledger_filter_stage", stageFilter); }, [stageFilter]);
+  useEffect(() => { localStorage.setItem("ledger_filter_risk", riskFilter); }, [riskFilter]);
+  useEffect(() => { localStorage.setItem("ledger_filter_jurisdiction", jurisdictionFilter); }, [jurisdictionFilter]);
+  useEffect(() => { localStorage.setItem("ledger_filter_source", sourceFilter); }, [sourceFilter]);
+  useEffect(() => { localStorage.setItem("ledger_filter_networth", netWorthFilter); }, [netWorthFilter]);
+  useEffect(() => { localStorage.setItem("ledger_filter_advisor", existingAdvisorFilter); }, [existingAdvisorFilter]);
+  useEffect(() => { localStorage.setItem("ledger_filter_minassets", minAssets); }, [minAssets]);
+  useEffect(() => { localStorage.setItem("ledger_filter_maxassets", maxAssets); }, [maxAssets]);
+  useEffect(() => { localStorage.setItem("ledger_filter_minscore", minScore); }, [minScore]);
+  useEffect(() => { localStorage.setItem("ledger_filter_linkedin", linkedinFilter); }, [linkedinFilter]);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [sortKey, setSortKey] = useState(() => localStorage.getItem("ledger_sort_key") || "score");
   const [sortDir, setSortDir] = useState(() => localStorage.getItem("ledger_sort_dir") || "desc");
@@ -495,6 +524,9 @@ export default function LeadDashboard({
       fee_payment_method: selected.feePaymentMethod || "",
       next_fee_review_date: selected.nextFeeReviewDate || "",
       fee_start_date: selected.feeStartDate || "",
+      upfront_fee_amount: selected.upfrontFeeAmount ?? "",
+      upfront_fee_basis: selected.upfrontFeeBasis || "",
+      upfront_fee_paid_date: selected.upfrontFeePaidDate || "",
       risk_profile: selected.riskProfile || "",
       preferred_contact_method: selected.preferredContactMethod || "",
       next_follow_up_date: selected.nextFollowUpDate || "",
@@ -545,6 +577,9 @@ export default function LeadDashboard({
         next_fee_review_date: detailsDraft.next_fee_review_date || null,
         fee_start_date: detailsDraft.fee_start_date || null,
         portfolio_value: detailsDraft.portfolio_value === "" ? null : Number(detailsDraft.portfolio_value),
+        upfront_fee_amount: detailsDraft.upfront_fee_amount === "" ? null : Number(detailsDraft.upfront_fee_amount),
+        upfront_fee_basis: detailsDraft.upfront_fee_basis || null,
+        upfront_fee_paid_date: detailsDraft.upfront_fee_paid_date || null,
       };
       if (onUpdateDetails) await onUpdateDetails(selected.id, payload);
       // Deliberately stays in edit mode — closing back to read-only
@@ -762,84 +797,97 @@ export default function LeadDashboard({
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TOKENS.ivory, textAlign: "right" }}>
               as of {formatDate(new Date().toISOString())}
             </div>
-            <button
-              onClick={async () => {
-                if (!onRecalculateScores) return;
-                setRecalculating(true);
-                try {
-                  const result = await onRecalculateScores();
-                  alert(`Rescored ${result.succeeded} of ${result.total} prospects.`);
-                } finally {
-                  setRecalculating(false);
-                }
-              }}
-              disabled={recalculating}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                background: TOKENS.surfaceRaised, color: TOKENS.textPrimary, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
-                padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: recalculating ? "default" : "pointer",
-                opacity: recalculating ? 0.6 : 1,
-              }}
-            >
-              <RefreshCw size={14} /> {recalculating ? "Scoring…" : "Recalculate scores"}
-            </button>
-            <button
-              onClick={() => {
-                const rows = filtered.map((lead) => ({
-                  full_name: lead.name,
-                  email: lead.email ?? "",
-                  phone: lead.phone ?? "",
-                  linkedin_url: lead.linkedinUrl ?? "",
-                  company: lead.company ?? "",
-                  job_title: lead.title ?? "",
-                  jurisdiction: getJurisdiction(jurisdictions, lead.jurisdiction).country ?? "",
-                  stage: lead.stage ?? "",
-                  score: lead.score ?? 0,
-                  estimated_investable_assets: lead.assets ?? "",
-                  currency: lead.currency ?? "GBP",
-                  net_worth_signal: lead.netWorth ?? "",
-                  liquidity_event: lead.liquidityEvent ?? "",
-                  source: lead.source ?? "",
-                  referred_by: lead.referredBy ?? "",
-                  opted_out: lead.optedOut ? "yes" : "no",
-                  provenance_unknown: lead.provenanceUnknown ? "yes" : "no",
-                  notes: lead.notes ?? "",
-                  created_at: lead.createdAt ?? "",
-                }));
-                const ws = XLSX.utils.json_to_sheet(rows);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Prospects");
-                const dateStr = new Date().toISOString().slice(0, 10);
-                XLSX.writeFile(wb, `prospect-ledger-export-${dateStr}.xlsx`);
-              }}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                background: TOKENS.surfaceRaised, color: TOKENS.textPrimary, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
-                padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
-              }}
-            >
-              <FileDown size={14} /> Export ({filtered.length})
-            </button>
-            <button
-              onClick={() => setShowImport(true)}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                background: TOKENS.surfaceRaised, color: TOKENS.textPrimary, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
-                padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
-              }}
-            >
-              <FileUp size={14} /> Import Excel
-            </button>
-            <button
-              onClick={() => setShowAddLead(true)}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6,
-                padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
-              }}
-            >
-              <Plus size={14} /> Add lead
-            </button>
+            {!readOnly && (
+              <button
+                onClick={async () => {
+                  if (!onRecalculateScores) return;
+                  setRecalculating(true);
+                  try {
+                    const result = await onRecalculateScores();
+                    alert(`Rescored ${result.succeeded} of ${result.total} prospects.`);
+                  } finally {
+                    setRecalculating(false);
+                  }
+                }}
+                disabled={recalculating}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: TOKENS.surfaceRaised, color: TOKENS.textPrimary, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
+                  padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: recalculating ? "default" : "pointer",
+                  opacity: recalculating ? 0.6 : 1,
+                }}
+              >
+                <RefreshCw size={14} /> {recalculating ? "Scoring…" : "Recalculate scores"}
+              </button>
+            )}
+            {!readOnly && (
+              <button
+                onClick={() => {
+                  const rows = filtered.map((lead) => ({
+                    full_name: lead.name,
+                    email: lead.email ?? "",
+                    phone: lead.phone ?? "",
+                    linkedin_url: lead.linkedinUrl ?? "",
+                    company: lead.company ?? "",
+                    job_title: lead.title ?? "",
+                    jurisdiction: getJurisdiction(jurisdictions, lead.jurisdiction).country ?? "",
+                    stage: lead.stage ?? "",
+                    score: lead.score ?? 0,
+                    estimated_investable_assets: lead.assets ?? "",
+                    currency: lead.currency ?? "GBP",
+                    net_worth_signal: lead.netWorth ?? "",
+                    liquidity_event: lead.liquidityEvent ?? "",
+                    source: lead.source ?? "",
+                    referred_by: lead.referredBy ?? "",
+                    opted_out: lead.optedOut ? "yes" : "no",
+                    provenance_unknown: lead.provenanceUnknown ? "yes" : "no",
+                    notes: lead.notes ?? "",
+                    created_at: lead.createdAt ?? "",
+                  }));
+                  const ws = XLSX.utils.json_to_sheet(rows);
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, "Prospects");
+                  const dateStr = new Date().toISOString().slice(0, 10);
+                  XLSX.writeFile(wb, `prospect-ledger-export-${dateStr}.xlsx`);
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: TOKENS.surfaceRaised, color: TOKENS.textPrimary, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
+                  padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                <FileDown size={14} /> Export ({filtered.length})
+              </button>
+            )}
+            {!readOnly && (
+              <button
+                onClick={() => setShowImport(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: TOKENS.surfaceRaised, color: TOKENS.textPrimary, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
+                  padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                <FileUp size={14} /> Import Excel
+              </button>
+            )}
+            {!readOnly && (
+              <button
+                onClick={() => setShowAddLead(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6,
+                  padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                <Plus size={14} /> Add lead
+              </button>
+            )}
+            {readOnly && (
+              <div style={{ fontSize: 12.5, color: TOKENS.ivoryMuted, padding: "8px 4px" }}>
+                View only — subscribe to add or change prospects
+              </div>
+            )}
           </div>
         </div>
 
@@ -1160,7 +1208,7 @@ export default function LeadDashboard({
         </div>
 
         {/* Bulk action bar — only shown when something's selected */}
-        {selectedForBulk.size > 0 && (
+        {selectedForBulk.size > 0 && !readOnly && (
           <div
             className="flex items-center gap-3 mb-3 px-4"
             style={{ background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.gold}55`, borderRadius: 8, height: 44 }}
@@ -1428,10 +1476,12 @@ export default function LeadDashboard({
               </dt>
               <select
                 value={selected.stage}
+                disabled={readOnly}
                 onChange={(e) => handleStageChange(selected.id, e.target.value)}
                 style={{
                   background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
                   height: 32, padding: "0 10px", color: TOKENS.textPrimary, fontSize: 13, width: "100%",
+                  opacity: readOnly ? 0.6 : 1, cursor: readOnly ? "not-allowed" : "pointer",
                 }}
               >
                 {Object.entries(STAGE_LABELS).map(([k, v]) => (
@@ -1444,7 +1494,7 @@ export default function LeadDashboard({
               <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: TOKENS.textFaint }}>
                 Details
               </div>
-              {!editingDetails && (
+              {!editingDetails && !readOnly && (
                 <button
                   onClick={startEditingDetails}
                   style={{ background: "none", border: "none", color: TOKENS.gold, fontSize: 12, cursor: "pointer" }}
@@ -1508,6 +1558,7 @@ export default function LeadDashboard({
                     ["Trailing 12 months (est.)", formatFeeMoney(getFeeRevenueRolling12Months(selected), selected.currency)],
                     ["Est. revenue since start", formatFeeMoney(getFeeRevenueSinceStart(selected), selected.currency)],
                     ["Next payment due", (() => { const d = getNextFeeDueDate(selected); return d ? formatDate(d.toISOString()) : "—"; })()],
+                    ["Upfront fee", selected.upfrontFeeAmount != null ? `${formatFeeMoney(getUpfrontFeeValue(selected), selected.currency)}${selected.upfrontFeePaidDate ? " — paid " + formatDate(selected.upfrontFeePaidDate) : " — not yet paid"}` : "—"],
                   ] : []),
                   ["Trustee", selected.trustee || "—"],
                   ["Risk profile", selected.riskProfile || "—"],
@@ -1826,6 +1877,43 @@ export default function LeadDashboard({
                               <label style={labelStyle}>Next fee review date</label>
                               <input type="date" style={inputStyle} value={detailsDraft.next_fee_review_date} onChange={(e) => dset("next_fee_review_date", e.target.value)} />
                             </div>
+                          </div>
+
+                          <div style={{ borderTop: `1px solid ${TOKENS.border}`, paddingTop: 12, marginTop: 12 }}>
+                            <div style={{ fontSize: 11, color: TOKENS.textFaint, marginBottom: 8 }}>
+                              Upfront fee — a one-time charge, separate from the recurring fee above
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label style={labelStyle}>{detailsDraft.upfront_fee_basis === "pct_aum" ? "Upfront rate (% of AUM)" : "Upfront amount"}</label>
+                                <input
+                                  type="number" step="0.01" style={inputStyle} value={detailsDraft.upfront_fee_amount}
+                                  onChange={(e) => dset("upfront_fee_amount", e.target.value)}
+                                />
+                              </div>
+                              <div>
+                                <label style={labelStyle}>Basis</label>
+                                <select style={inputStyle} value={detailsDraft.upfront_fee_basis} onChange={(e) => dset("upfront_fee_basis", e.target.value)}>
+                                  <option value="">—</option>
+                                  <option value="flat">Flat fee</option>
+                                  <option value="pct_aum">% of AUM</option>
+                                </select>
+                              </div>
+                              <div className="col-span-2">
+                                <label style={labelStyle}>Paid date (leave blank until actually paid)</label>
+                                <input type="date" style={inputStyle} value={detailsDraft.upfront_fee_paid_date} onChange={(e) => dset("upfront_fee_paid_date", e.target.value)} />
+                              </div>
+                            </div>
+                            {detailsDraft.upfront_fee_amount !== "" && (
+                              <div style={{ fontSize: 12.5, marginTop: 8, color: detailsDraft.upfront_fee_paid_date ? TOKENS.riskLow : TOKENS.textMuted }}>
+                                {(() => {
+                                  const value = detailsDraft.upfront_fee_basis === "pct_aum"
+                                    ? (Number(detailsDraft.portfolio_value) || 0) * (Number(detailsDraft.upfront_fee_amount) / 100)
+                                    : Number(detailsDraft.upfront_fee_amount);
+                                  return `${formatFeeMoney(value, detailsDraft.currency)}${detailsDraft.upfront_fee_paid_date ? " — paid" : " — not yet paid"}`;
+                                })()}
+                              </div>
+                            )}
                           </div>
 
                           {(() => {
