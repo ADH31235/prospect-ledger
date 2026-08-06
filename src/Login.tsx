@@ -32,8 +32,17 @@ export default function Login() {
     setBusy(true);
     setError(null);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setError(error.message);
-    setBusy(false);
+    if (error) {
+      setError(error.message);
+      setBusy(false);
+      return;
+    }
+    // Force a clean reload rather than a client-side transition —
+    // otherwise data fetched once on the app's first load (like
+    // whether you're a platform admin, or which tenant you belong
+    // to) can keep showing stale results from whoever was
+    // previously signed in in this same browser tab.
+    window.location.href = "/";
   }
 
   async function handleResetRequest(e: React.FormEvent) {

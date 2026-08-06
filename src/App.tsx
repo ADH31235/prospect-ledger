@@ -113,7 +113,9 @@ function AuthenticatedApp() {
               "ledger_sort_key", "ledger_sort_dir",
               "ledger_assets_display_currency", "ledger_assets_manual_rates",
             ].forEach((k) => localStorage.removeItem(k));
-            supabase.auth.signOut();
+            supabase.auth.signOut().then(() => {
+              window.location.href = "/";
+            });
           }}
           title="Sign out"
           style={{
