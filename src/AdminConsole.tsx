@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Building2, TrendingUp, TrendingDown, Trash2, Ban, Gift, UserPlus } from "lucide-react";
+import { Building2, TrendingUp, TrendingDown, Trash2, Ban, Gift, UserPlus, Building, Users2 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import { TOKENS } from "./theme";
+import SubscriptionLedger from "./SubscriptionLedger";
 
 const STATUS_META = {
   none: { label: "No subscription", color: TOKENS.textFaint },
@@ -13,6 +14,7 @@ const STATUS_META = {
 };
 
 export default function AdminConsole() {
+  const [adminTab, setAdminTab] = useState("companies");
   const [tenants, setTenants] = useState([]);
   const [wipeTarget, setWipeTarget] = useState(null);
   const [actionBusy, setActionBusy] = useState(null); // tenant id currently being acted on
@@ -164,7 +166,30 @@ export default function AdminConsole() {
           </p>
         </div>
 
-        {error ? (
+        <div className="flex gap-2 mb-6">
+          {[
+            { key: "companies", label: "Companies", icon: Building },
+            { key: "subscription_ledger", label: "Subscription Ledger", icon: Users2 },
+          ].map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setAdminTab(key)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: adminTab === key ? TOKENS.surface : "none",
+                border: adminTab === key ? `1px solid ${TOKENS.border}` : "1px solid transparent",
+                borderRadius: 6, cursor: "pointer",
+                padding: "8px 14px", fontSize: 13,
+                color: adminTab === key ? TOKENS.textPrimary : TOKENS.ivory,
+              }}
+            >
+              <Icon size={14} /> {label}
+            </button>
+          ))}
+        </div>
+
+        {adminTab === "companies" && (
+        error ? (
           <div style={{ background: TOKENS.surface, borderRadius: 10, padding: 20, color: TOKENS.riskBlocked, fontSize: 13.5 }}>
             {error}
           </div>
@@ -389,7 +414,9 @@ export default function AdminConsole() {
               )}
             </div>
           </>
-        )}
+        ))}
+
+        {adminTab === "subscription_ledger" && <SubscriptionLedger />}
       </div>
 
       {wipeTarget && (
