@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { supabase } from "./supabaseClient";
 import {
   ChevronUp,
   ChevronDown,
@@ -14,11 +15,14 @@ import {
   Trash2,
   FileUp,
   FileDown,
+  Paperclip,
   SlidersHorizontal,
   Linkedin,
   RefreshCw,
   Cake,
   Wallet,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { TOKENS } from "./theme";
 
@@ -475,9 +479,11 @@ export default function LeadDashboard({
   const [detailsNewCountry, setDetailsNewCountry] = useState("");
   const [savingDetails, setSavingDetails] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  const [drawerExpanded, setDrawerExpanded] = useState(false);
 
   function startEditingDetails() {
     setDetailsDraft({
+      full_name: selected.name || "",
       email: selected.email || "",
       phone: selected.phone || "",
       linkedin_url: selected.linkedinUrl || "",
@@ -729,6 +735,9 @@ export default function LeadDashboard({
   const selected = leads.find((l) => l.id === selectedId) ?? null;
 
   const [enrollments, setEnrollments] = useState([]);
+  const [leadDocuments, setLeadDocuments] = useState([]);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [docsLoading, setDocsLoading] = useState(false);
   const [selectedSequenceId, setSelectedSequenceId] = useState("");
   const [enrolling, setEnrolling] = useState(false);
 
@@ -740,7 +749,76 @@ export default function LeadDashboard({
     if (selectedId && onGetEnrollments) {
       onGetEnrollments(selectedId).then(setEnrollments).catch(() => setEnrollments([]));
     }
+    setLeadDocuments([]);
+    if (selectedId) loadDocuments(selectedId);
   }, [selectedId]);
+
+  async function loadDocuments(leadId) {
+    setDocsLoading(true);
+    const { data, error } = await supabase
+      .from("lead_documents")
+      .select("*")
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false });
+    if (!error) setLeadDocuments(data ?? []);
+    setDocsLoading(false);
+  }
+
+  async function handleUploadDocument(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file || !selected) return;
+    setUploadingDoc(true);
+    try {
+      const path = `${selected.tenantId}/${selected.id}/${Date.now()}-${file.name}`;
+      const { error: uploadErr } = await supabase.storage.from("lead-documents").upload(path, file);
+      if (uploadErr) throw uploadErr;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error: insertErr } = await supabase.from("lead_documents").insert({
+        tenant_id: selected.tenantId,
+        lead_id: selected.id,
+        file_name: file.name,
+        storage_path: path,
+        file_size: file.size,
+        uploaded_by: user?.id ?? null,
+      });
+      if (insertErr) throw insertErr;
+      await loadDocuments(selected.id);
+    } catch (err) {
+      alert(`Couldn't upload: ${err?.message ?? err}`);
+    } finally {
+      setUploadingDoc(false);
+    }
+  }
+
+  async function handleDownloadDocument(doc) {
+    const { data, error } = await supabase.storage.from("lead-documents").createSignedUrl(doc.storage_path, 60);
+    if (error || !data?.signedUrl) {
+      alert(`Couldn't generate download link: ${error?.message ?? "unknown error"}`);
+      return;
+    }
+    window.open(data.signedUrl, "_blank");
+  }
+
+  async function handleDeleteDocument(doc) {
+    if (!window.confirm(`Delete "${doc.file_name}"? This cannot be undone.`)) return;
+    try {
+      await supabase.storage.from("lead-documents").remove([doc.storage_path]);
+      const { error } = await supabase.from("lead_documents").delete().eq("id", doc.id);
+      if (error) throw error;
+      setLeadDocuments((prev) => prev.filter((d) => d.id !== doc.id));
+    } catch (err) {
+      alert(`Couldn't delete: ${err?.message ?? err}`);
+    }
+  }
+
+  function formatFileSize(bytes) {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
 
   async function handleSaveNotes() {
     if (!selected) return;
@@ -931,27 +1009,29 @@ export default function LeadDashboard({
             <p style={{ fontSize: 11.5, color: TOKENS.textMuted, marginBottom: 10 }}>
               Prospects have assets in more than one currency. No live exchange-rate feed is connected — set your own rates below to combine them into the total above.
             </p>
-            <div className="flex items-center gap-3 flex-wrap mb-2">
-              <label style={{ fontSize: 12, color: TOKENS.textMuted }}>Show total in</label>
-              <select
-                value={assetsDisplayCurrency}
-                onChange={(e) => setAssetsDisplayCurrency(e.target.value)}
-                style={{ background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
-              >
-                {Object.keys(stats.pipelineAssetsByCurrency).map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            {Object.keys(stats.pipelineAssetsByCurrency).filter((c) => c !== assetsDisplayCurrency).map((c) => (
-              <div key={c} className="flex items-center gap-2 mb-1.5">
-                <span style={{ fontSize: 12, color: TOKENS.textMuted, width: 90 }}>1 {c} =</span>
-                <input
-                  type="number" step="0.0001" value={assetsManualRates[c] ?? 1}
-                  onChange={(e) => setAssetsManualRates((prev) => ({ ...prev, [c]: parseFloat(e.target.value) || 0 }))}
-                  style={{ width: 90, background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
-                />
-                <span style={{ fontSize: 12, color: TOKENS.textMuted }}>{assetsDisplayCurrency}</span>
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <label style={{ fontSize: 12, color: TOKENS.textMuted }}>Show total in</label>
+                <select
+                  value={assetsDisplayCurrency}
+                  onChange={(e) => setAssetsDisplayCurrency(e.target.value)}
+                  style={{ background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
+                >
+                  {Object.keys(stats.pipelineAssetsByCurrency).map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
-            ))}
+              {Object.keys(stats.pipelineAssetsByCurrency).filter((c) => c !== assetsDisplayCurrency).map((c) => (
+                <div key={c} className="flex items-center gap-2">
+                  <span style={{ fontSize: 12, color: TOKENS.textMuted }}>1 {c} =</span>
+                  <input
+                    type="number" step="0.0001" value={assetsManualRates[c] ?? 1}
+                    onChange={(e) => setAssetsManualRates((prev) => ({ ...prev, [c]: parseFloat(e.target.value) || 0 }))}
+                    style={{ width: 80, background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
+                  />
+                  <span style={{ fontSize: 12, color: TOKENS.textMuted }}>{assetsDisplayCurrency}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1414,11 +1494,19 @@ export default function LeadDashboard({
       {selected && (
         <div
           onClick={() => setSelectedId(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(6,9,13,0.6)", display: "flex", justifyContent: "flex-end", zIndex: 40 }}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(6,9,13,0.6)", display: "flex",
+            justifyContent: drawerExpanded ? "center" : "flex-end",
+            alignItems: drawerExpanded ? "center" : "stretch",
+            zIndex: 40,
+          }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{
+            style={drawerExpanded ? {
+              width: 820, maxWidth: "92vw", maxHeight: "88vh", background: TOKENS.surface,
+              borderRadius: 12, padding: "24px 32px", overflowY: "auto",
+            } : {
               width: 400, maxWidth: "90vw", height: "100%", background: TOKENS.surface,
               borderLeft: `1px solid ${TOKENS.border}`, padding: "24px 22px", overflowY: "auto",
             }}
@@ -1432,6 +1520,13 @@ export default function LeadDashboard({
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setDrawerExpanded((v) => !v)}
+                  title={drawerExpanded ? "Collapse to side panel" : "Expand to center of screen"}
+                  style={{ background: "none", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", cursor: "pointer", color: TOKENS.textMuted, display: "flex", alignItems: "center" }}
+                >
+                  {drawerExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                </button>
                 <button
                   onClick={async () => {
                     if (!window.confirm(`Delete ${selected.name}? This cannot be undone.`)) return;
@@ -1610,6 +1705,7 @@ export default function LeadDashboard({
                   const dset = (field, value) => setDetailsDraft((d) => ({ ...d, [field]: value }));
                   return (
                     <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2"><label style={labelStyle}>Name</label><input style={inputStyle} value={detailsDraft.full_name} onChange={(e) => dset("full_name", e.target.value)} /></div>
                       <div><label style={labelStyle}>Email</label><input style={inputStyle} value={detailsDraft.email} onChange={(e) => dset("email", e.target.value)} /></div>
                       <div><label style={labelStyle}>Phone</label><input style={inputStyle} value={detailsDraft.phone} onChange={(e) => dset("phone", e.target.value)} /></div>
                       <div className="col-span-2"><label style={labelStyle}>LinkedIn URL</label><input style={inputStyle} value={detailsDraft.linkedin_url} onChange={(e) => dset("linkedin_url", e.target.value)} /></div>
@@ -2024,6 +2120,52 @@ export default function LeadDashboard({
             )}
 
             <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: TOKENS.textFaint, marginBottom: 6 }}>
+              Documents
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              {docsLoading ? (
+                <div style={{ fontSize: 12.5, color: TOKENS.textFaint, marginBottom: 8 }}>Loading…</div>
+              ) : leadDocuments.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: TOKENS.textFaint, marginBottom: 8 }}>No documents uploaded yet.</div>
+              ) : (
+                <div style={{ marginBottom: 8 }}>
+                  {leadDocuments.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between"
+                      style={{ padding: "7px 10px", background: TOKENS.surfaceRaised, borderRadius: 6, marginBottom: 6 }}
+                    >
+                      <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
+                        <Paperclip size={13} color={TOKENS.textFaint} style={{ flexShrink: 0 }} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{doc.file_name}</div>
+                          <div style={{ fontSize: 10.5, color: TOKENS.textFaint }}>{formatFileSize(doc.file_size)}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+                        <button onClick={() => handleDownloadDocument(doc)} title="Download" style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.textMuted, display: "flex" }}>
+                          <FileDown size={13} />
+                        </button>
+                        <button onClick={() => handleDeleteDocument(doc)} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", color: TOKENS.riskBlocked, display: "flex" }}>
+                          <X size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <label
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: TOKENS.gold,
+                  cursor: uploadingDoc ? "default" : "pointer", opacity: uploadingDoc ? 0.6 : 1,
+                }}
+              >
+                <FileUp size={13} /> {uploadingDoc ? "Uploading…" : "Upload document"}
+                <input type="file" onChange={handleUploadDocument} disabled={uploadingDoc} style={{ display: "none" }} />
+              </label>
+            </div>
+
+            <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: TOKENS.textFaint, marginBottom: 6 }}>
               Notes
             </div>
             <textarea
@@ -2041,7 +2183,7 @@ export default function LeadDashboard({
               onClick={handleSaveNotes}
               disabled={savingNotes || noteDraft === (selected.notes ?? "")}
               style={{
-                background: noteDraft === (selected.notes ?? "") ? TOKENS.surfaceRaised : TOKENS.gold,
+                background: noteDraft === (selected.notes ?? "") ? TOKENS.surfaceRaised : TOKENS.ivory,
                 color: noteDraft === (selected.notes ?? "") ? TOKENS.textFaint : TOKENS.bg,
                 border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "7px 14px",
                 fontSize: 12.5, fontWeight: 600, cursor: savingNotes ? "default" : "pointer", marginBottom: 20,

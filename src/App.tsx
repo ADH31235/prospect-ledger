@@ -38,17 +38,21 @@ function AuthenticatedApp() {
   // enforcement happens at the RLS level, so this can't be bypassed
   // by editing the frontend.
   const isOnTrialGrant = !!tenant?.trial_access_until && new Date(tenant.trial_access_until) >= new Date();
-  const hasActiveAccess = !!tenant && (
+  // Platform admin always has full access on their own account,
+  // regardless of that account's own subscription status — this
+  // mirrors the same bypass added to the database RLS functions
+  // below, so the UI and the actual enforcement stay in sync.
+  const hasActiveAccess = isPlatformAdmin || (!!tenant && (
     tenant.subscription_status === "active" ||
     tenant.subscription_status === "trialing" ||
     isOnTrialGrant
-  );
+  ));
   // Starter gets the Ledger and basic jurisdiction-based compliance
   // gating only — sequences, newsletter, webinars, content, deal
   // signals, and fee/revenue analytics all need Professional+. An
   // admin-granted trial shows the full product regardless of tier,
   // since the whole point is demonstrating everything.
-  const hasProfessionalTier = isOnTrialGrant || (
+  const hasProfessionalTier = isPlatformAdmin || isOnTrialGrant || (
     hasActiveAccess && (tenant?.plan_tier === "professional" || tenant?.plan_tier === "enterprise")
   );
   const {

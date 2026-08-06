@@ -126,7 +126,7 @@ export default function SubscriptionLedger() {
           onClick={startAdd}
           style={{
             display: "flex", alignItems: "center", gap: 6,
-            background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
+            background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6,
             padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
           }}
         >
@@ -266,7 +266,7 @@ export default function SubscriptionLedger() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                style={{ flex: 1, background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.6 : 1 }}
+                style={{ flex: 1, background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.6 : 1 }}
               >
                 {saving ? "Saving…" : editingId ? "Save changes" : "Add prospect"}
               </button>

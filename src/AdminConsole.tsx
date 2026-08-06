@@ -295,29 +295,31 @@ export default function AdminConsole() {
                     Everyone's currently billed in {kpis.mrr[0].currency}. This section will let you pick a combined display currency and set manual conversion rates automatically, the moment a second currency shows up.
                   </p>
                 )}
-                {kpis.mrr.length > 1 && (
-                  <div className="flex items-center gap-3 flex-wrap mb-3">
-                    <label style={{ fontSize: 12.5, color: TOKENS.textMuted }}>Show total in</label>
-                    <select
-                      value={displayCurrency ?? ""}
-                      onChange={(e) => setDisplayCurrency(e.target.value)}
-                      style={{ background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
-                    >
-                      {kpis.mrr.map((m) => <option key={m.currency} value={m.currency}>{m.currency}</option>)}
-                    </select>
-                  </div>
-                )}
-                {kpis.mrr.length > 1 && kpis.mrr.filter((m) => m.currency !== displayCurrency).map((m) => (
-                  <div key={m.currency} className="flex items-center gap-2 mb-2">
-                    <span style={{ fontSize: 12.5, color: TOKENS.textMuted, width: 100 }}>1 {m.currency} =</span>
-                    <input
-                      type="number" step="0.0001" value={manualRates[m.currency] ?? 1}
-                      onChange={(e) => setManualRates((prev) => ({ ...prev, [m.currency]: parseFloat(e.target.value) || 0 }))}
-                      style={{ width: 90, background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
-                    />
-                    <span style={{ fontSize: 12.5, color: TOKENS.textMuted }}>{displayCurrency}</span>
-                  </div>
-                ))}
+                <div className="flex items-center gap-4 flex-wrap">
+                  {kpis.mrr.length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <label style={{ fontSize: 12.5, color: TOKENS.textMuted }}>Show total in</label>
+                      <select
+                        value={displayCurrency ?? ""}
+                        onChange={(e) => setDisplayCurrency(e.target.value)}
+                        style={{ background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
+                      >
+                        {kpis.mrr.map((m) => <option key={m.currency} value={m.currency}>{m.currency}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {kpis.mrr.length > 1 && kpis.mrr.filter((m) => m.currency !== displayCurrency).map((m) => (
+                    <div key={m.currency} className="flex items-center gap-2">
+                      <span style={{ fontSize: 12.5, color: TOKENS.textMuted }}>1 {m.currency} =</span>
+                      <input
+                        type="number" step="0.0001" value={manualRates[m.currency] ?? 1}
+                        onChange={(e) => setManualRates((prev) => ({ ...prev, [m.currency]: parseFloat(e.target.value) || 0 }))}
+                        style={{ width: 80, background: "#F4F1E8", border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12.5 }}
+                      />
+                      <span style={{ fontSize: 12.5, color: TOKENS.textMuted }}>{displayCurrency}</span>
+                    </div>
+                  ))}
+                </div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18, marginTop: 8 }}>
                   {kpis.mrr.length > 1 ? displayCurrency : kpis.mrr[0].currency} {kpis.mrr.reduce((sum, m) => {
                     const rate = kpis.mrr.length > 1 ? (m.currency === displayCurrency ? 1 : (manualRates[m.currency] ?? 1)) : 1;
@@ -439,7 +441,7 @@ export default function AdminConsole() {
                     <div key={table}>{table}: {count}</div>
                   ))}
                 </div>
-                <button onClick={closeWipeDialog} style={{ width: "100%", background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                <button onClick={closeWipeDialog} style={{ width: "100%", background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                   Close
                 </button>
               </>
@@ -538,7 +540,7 @@ export default function AdminConsole() {
                 <p style={{ fontSize: 13, color: TOKENS.textMuted, marginBottom: 16 }}>
                   {inviteEmail} will receive an email to set their password and join {inviteTarget.name}.
                 </p>
-                <button onClick={closeInviteDialog} style={{ width: "100%", background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                <button onClick={closeInviteDialog} style={{ width: "100%", background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                   Close
                 </button>
               </>
@@ -579,7 +581,7 @@ export default function AdminConsole() {
                     onClick={handleInviteUser}
                     disabled={inviteSending || !inviteEmail.trim()}
                     style={{
-                      flex: 1, background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
+                      flex: 1, background: TOKENS.ivory, color: TOKENS.bg, border: "none", borderRadius: 6,
                       padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer",
                       opacity: inviteSending || !inviteEmail.trim() ? 0.5 : 1,
                     }}

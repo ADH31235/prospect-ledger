@@ -11,6 +11,7 @@ import { scoreLeadFromSupabase, scoreLead } from "./scoring";
 function mapRow(row: any) {
   return {
     id: row.id,
+    tenantId: row.tenant_id,
     name: row.full_name,
     title: row.job_title ?? "—",
     company: row.company ?? "—",
