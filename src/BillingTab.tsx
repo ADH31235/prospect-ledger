@@ -14,9 +14,38 @@ const TIER_PRICE_IDS = {
   professional: import.meta.env.VITE_PADDLE_PROFESSIONAL_PRICE_ID,
 };
 const TIER_INFO = {
-  starter: { label: "Starter", price: "$49/user/mo", blurb: "Ledger and basic jurisdiction-based compliance gating." },
-  professional: { label: "Professional", price: "$79/user/mo", blurb: "Full compliance workflow, sequences, newsletter, webinars, content library, and fee/revenue analytics." },
+  starter: {
+    label: "Starter", price: "$49/user/mo",
+    attrs: {
+      Users: "Priced per user",
+      "Active leads": "Up to 250/user",
+      "Compliance workflow": "Jurisdiction gating only",
+      "Sequences & newsletter": "Not included",
+      "Fee/revenue analytics": "Not included",
+    },
+  },
+  professional: {
+    label: "Professional", price: "$79/user/mo",
+    attrs: {
+      Users: "Priced per user",
+      "Active leads": "Unlimited",
+      "Compliance workflow": "Full 4-gate system",
+      "Sequences & newsletter": "Included",
+      "Fee/revenue analytics": "Included",
+    },
+  },
+  enterprise: {
+    label: "Enterprise", price: "Custom",
+    attrs: {
+      Users: "Priced per user, volume discount",
+      "Active leads": "Unlimited",
+      "Compliance workflow": "Full + custom rules",
+      "Sequences & newsletter": "Included",
+      "Fee/revenue analytics": "Multi-office rollup",
+    },
+  },
 };
+const ATTR_ROWS = ["Users", "Active leads", "Compliance workflow", "Sequences & newsletter", "Fee/revenue analytics"];
 
 const STATUS_META = {
   none: { label: "No active subscription", color: TOKENS.textFaint },
@@ -216,35 +245,49 @@ export default function BillingTab() {
                     onChange={(e) => setSeatCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
                     style={{ width: 60, background: TOKENS.surfaceRaised, border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "6px 8px", fontSize: 13, color: TOKENS.textPrimary }}
                   />
+                  <span style={{ fontSize: 11.5, color: TOKENS.textFaint }}>(doesn't apply to Enterprise)</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="grid grid-cols-3 gap-3 mb-4">
                   {Object.entries(TIER_INFO).map(([tier, info]) => (
                     <div key={tier} style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: 16 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{info.label}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: TOKENS.textMuted, marginBottom: 8 }}>{info.price}</div>
-                      <p style={{ fontSize: 11.5, color: TOKENS.textFaint, marginBottom: 12, lineHeight: 1.5 }}>{info.blurb}</p>
-                      <button
-                        onClick={() => handleSubscribe(tier)}
-                        disabled={checkoutOpening}
-                        style={{
-                          display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%",
-                          background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
-                          padding: "8px 0", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
-                          opacity: checkoutOpening ? 0.6 : 1,
-                        }}
-                      >
-                        <CreditCard size={13} /> {checkoutOpening ? "Opening…" : `Subscribe (${seatCount} seat${seatCount === 1 ? "" : "s"})`}
-                      </button>
+                      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>{info.label}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: TOKENS.textMuted, marginBottom: 14 }}>{info.price}</div>
+
+                      {ATTR_ROWS.map((row) => (
+                        <div key={row} style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 10.5, color: TOKENS.textFaint, textTransform: "uppercase", letterSpacing: "0.05em" }}>{row}</div>
+                          <div style={{ fontSize: 12, color: TOKENS.textPrimary }}>{info.attrs[row]}</div>
+                        </div>
+                      ))}
+
+                      {tier === "enterprise" ? (
+                        <a
+                          href={`mailto:support@trivaraservices.com?subject=${encodeURIComponent(`Enterprise plan — ${tenant?.name ?? "my account"}`)}`}
+                          style={{
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%",
+                            background: "none", color: TOKENS.gold, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
+                            padding: "8px 0", fontSize: 12.5, fontWeight: 600, textDecoration: "none", marginTop: 4,
+                          }}
+                        >
+                          <Mail size={13} /> Contact us
+                        </a>
+                      ) : (
+                        <button
+                          onClick={() => handleSubscribe(tier)}
+                          disabled={checkoutOpening}
+                          style={{
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%",
+                            background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6,
+                            padding: "8px 0", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginTop: 4,
+                            opacity: checkoutOpening ? 0.6 : 1,
+                          }}
+                        >
+                          <CreditCard size={13} /> {checkoutOpening ? "Opening…" : `Subscribe (${seatCount} seat${seatCount === 1 ? "" : "s"})`}
+                        </button>
+                      )}
                     </div>
                   ))}
-                </div>
-
-                <div style={{ fontSize: 12, color: TOKENS.textFaint }}>
-                  Larger team or need custom terms?{" "}
-                  <a href={`mailto:support@trivaraservices.com?subject=${encodeURIComponent(`Enterprise plan — ${tenant?.name ?? "my account"}`)}`} style={{ color: TOKENS.gold }}>
-                    Contact us about Enterprise
-                  </a>
                 </div>
 
                 {checkoutError && <div style={{ color: TOKENS.riskBlocked, fontSize: 12.5, marginTop: 10 }}>{checkoutError}</div>}
