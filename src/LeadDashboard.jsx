@@ -448,10 +448,6 @@ export default function LeadDashboard({
   const [pageSize, setPageSize] = useState(() => parseInt(localStorage.getItem("ledger_page_size") || "50", 10));
 
   useEffect(() => { localStorage.setItem("ledger_page_size", String(pageSize)); }, [pageSize]);
-  // Any filter/sort change should land back on page 1 — otherwise
-  // you could end up on page 4 of a filtered view that now only
-  // has 1 page, staring at an empty table for no obvious reason.
-  useEffect(() => { setCurrentPage(1); }, [query, stageFilter, riskFilter, jurisdictionFilter, sourceFilter, netWorthFilter, existingAdvisorFilter, minAssets, maxAssets, minScore, linkedinFilter, sortKey, sortDir, pageSize]);
   const [bulkJurisdictionId, setBulkJurisdictionId] = useState("");
   const [bulkWorking, setBulkWorking] = useState(false);
 
@@ -489,6 +485,12 @@ export default function LeadDashboard({
 
   useEffect(() => { localStorage.setItem("ledger_sort_key", sortKey); }, [sortKey]);
   useEffect(() => { localStorage.setItem("ledger_sort_dir", sortDir); }, [sortDir]);
+
+  // Any filter/sort/page-size change should land back on page 1 —
+  // otherwise you could end up on page 4 of a filtered view that
+  // now only has 1 page, staring at an empty table for no obvious
+  // reason.
+  useEffect(() => { setCurrentPage(1); }, [query, stageFilter, riskFilter, jurisdictionFilter, sourceFilter, netWorthFilter, existingAdvisorFilter, minAssets, maxAssets, minScore, linkedinFilter, sortKey, sortDir, pageSize]);
   const [selectedId, setSelectedId] = useState(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
