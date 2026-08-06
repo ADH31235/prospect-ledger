@@ -444,6 +444,14 @@ export default function LeadDashboard({
     localStorage.setItem("ledger_assets_manual_rates", JSON.stringify(assetsManualRates));
   }, [assetsManualRates]);
   const [selectedForBulk, setSelectedForBulk] = useState(() => new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(() => parseInt(localStorage.getItem("ledger_page_size") || "50", 10));
+
+  useEffect(() => { localStorage.setItem("ledger_page_size", String(pageSize)); }, [pageSize]);
+  // Any filter/sort change should land back on page 1 — otherwise
+  // you could end up on page 4 of a filtered view that now only
+  // has 1 page, staring at an empty table for no obvious reason.
+  useEffect(() => { setCurrentPage(1); }, [query, stageFilter, riskFilter, jurisdictionFilter, sourceFilter, netWorthFilter, existingAdvisorFilter, minAssets, maxAssets, minScore, linkedinFilter, sortKey, sortDir, pageSize]);
   const [bulkJurisdictionId, setBulkJurisdictionId] = useState("");
   const [bulkWorking, setBulkWorking] = useState(false);
 
@@ -1291,10 +1299,22 @@ export default function LeadDashboard({
         )}
 
         {/* Result count */}
-        <div style={{ fontSize: 12.5, color: TOKENS.ivory, marginBottom: 10 }}>
-          Showing <span style={{ color: TOKENS.ivory, fontFamily: "'JetBrains Mono', monospace" }}>{filtered.length}</span> of{" "}
-          <span style={{ color: TOKENS.ivory, fontFamily: "'JetBrains Mono', monospace" }}>{leads.length}</span> prospects
-          {activeFilterCount > 0 || query.trim() !== "" ? " (filtered)" : ""}
+        <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 12.5, color: TOKENS.ivory }}>
+            Showing <span style={{ color: TOKENS.ivory, fontFamily: "'JetBrains Mono', monospace" }}>{filtered.length}</span> of{" "}
+            <span style={{ color: TOKENS.ivory, fontFamily: "'JetBrains Mono', monospace" }}>{leads.length}</span> prospects
+            {activeFilterCount > 0 || query.trim() !== "" ? " (filtered)" : ""}
+          </div>
+          <div className="flex items-center gap-2">
+            <label style={{ fontSize: 12, color: TOKENS.ivoryMuted }}>Per page</label>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(parseInt(e.target.value, 10))}
+              style={{ background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 6, padding: "4px 8px", fontSize: 12.5, color: TOKENS.textPrimary }}
+            >
+              {[25, 50, 100, 200].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
         </div>
 
         {/* Bulk action bar — only shown when something's selected */}
@@ -1411,7 +1431,11 @@ export default function LeadDashboard({
             <SortHeader label="Last contact" sortK="lastContact" />
           </div>
 
-          {filtered.map((lead, i) => {
+          {(() => {
+            const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+            const pageStart = (currentPage - 1) * pageSize;
+            const pageLeads = filtered.slice(pageStart, pageStart + pageSize);
+            return pageLeads.map((lead, i) => {
             const j = getJurisdiction(jurisdictions, lead.jurisdiction);
             const blocked = j.risk === "do_not_contact";
             return (
@@ -1424,7 +1448,7 @@ export default function LeadDashboard({
                   gap: 12,
                   padding: "12px 16px",
                   background: i % 2 === 0 ? TOKENS.surface : "#F4F1E8",
-                  borderBottom: i < filtered.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
+                  borderBottom: i < pageLeads.length - 1 ? `1px solid ${TOKENS.borderFaint}` : "none",
                   opacity: blocked ? 0.55 : 1,
                 }}
               >
@@ -1500,7 +1524,8 @@ export default function LeadDashboard({
                 </div>
               </div>
             );
-          })}
+            });
+          })()}
 
           {filtered.length === 0 && (
             <div style={{ padding: "40px 16px", textAlign: "center", color: TOKENS.textFaint, fontSize: 13 }}>
@@ -1510,6 +1535,41 @@ export default function LeadDashboard({
           </div>
           </div>
         </div>
+
+        {filtered.length > pageSize && (() => {
+          const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+          return (
+            <div className="flex items-center justify-between" style={{ marginTop: 12 }}>
+              <span style={{ fontSize: 12, color: TOKENS.ivoryMuted }}>
+                Page {currentPage} of {totalPages}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  style={{
+                    background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
+                    padding: "6px 12px", fontSize: 12.5, cursor: currentPage === 1 ? "default" : "pointer",
+                    color: TOKENS.textPrimary, opacity: currentPage === 1 ? 0.5 : 1,
+                  }}
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 6,
+                    padding: "6px 12px", fontSize: 12.5, cursor: currentPage === totalPages ? "default" : "pointer",
+                    color: TOKENS.textPrimary, opacity: currentPage === totalPages ? 0.5 : 1,
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Detail drawer */}
