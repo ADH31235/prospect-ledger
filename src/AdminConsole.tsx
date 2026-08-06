@@ -153,10 +153,11 @@ export default function AdminConsole() {
     setInviteSuccess(false);
   }
 
-  async function handleSetupPaddle() {
-    if (paddleSetupResult) {
-      if (!window.confirm("This already ran once — running it again creates a second, duplicate set of products in Paddle. Continue anyway?")) return;
-    }
+  useEffect(() => {
+    handleSetupPaddle(true);
+  }, []);
+
+  async function handleSetupPaddle(silent = false) {
     setSettingUpPaddle(true);
     setPaddleSetupError("");
     try {
@@ -164,7 +165,7 @@ export default function AdminConsole() {
       if (error) throw error;
       setPaddleSetupResult(data.results);
     } catch (err) {
-      setPaddleSetupError(err?.message ?? "Couldn't set up Paddle products.");
+      if (!silent) setPaddleSetupError(err?.message ?? "Couldn't set up Paddle products.");
     } finally {
       setSettingUpPaddle(false);
     }
@@ -193,7 +194,7 @@ export default function AdminConsole() {
               Creates the Starter and Professional products/prices directly in Paddle. Run this once — you'll need the resulting Price IDs for Vercel's environment variables afterward.
             </p>
             <button
-              onClick={handleSetupPaddle}
+              onClick={() => handleSetupPaddle(false)}
               disabled={settingUpPaddle}
               style={{ background: TOKENS.gold, color: TOKENS.bg, border: "none", borderRadius: 6, padding: "9px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: settingUpPaddle ? 0.6 : 1 }}
             >
